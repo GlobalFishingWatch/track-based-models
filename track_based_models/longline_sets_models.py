@@ -12,7 +12,7 @@ from .base_model import BaseModel, hybrid_pool_layer
 class ConvNetModel5(BaseModel):
     delta = hour
     window = (29 + 4*6) *  delta
-    time_points = window // delta - 1
+    time_points = window // delta
     base_filter_count = 32
     fc_nodes = 512
 
@@ -22,7 +22,7 @@ class ConvNetModel5(BaseModel):
         
         depth = self.base_filter_count
         
-        input_layer = Input(shape=(self.time_points, 6))
+        input_layer = Input(shape=(self.time_points, 5))
         y = input_layer
         y = Conv1D(depth, 3)(y)
         y = ELU()(y)

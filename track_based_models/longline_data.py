@@ -88,87 +88,43 @@ def add_obj_data(obj, features):
     features['is_defined'] = raw_defined_i > 0.5
     features['fishing'] = features['is_defined'] * (2 - features['is_fishing'])
 
-# def build_features_2(obj, features, 
-#                     skip_label=False, keep_frac=1.0):
-#     n_pts = len(features['lat'])
-#     assert 0 < keep_frac <= 1, 'keep frac must be between 0 and 1'
-#     if keep_frac == 1:
-#         mask = None
-#     else:           
-#         # raise ValueError('only keep_frac of 1 allowed') 
-#         # Build a random mask with probability keep_frac. Force
-#         # first and last point to be true so the time frame
-#         # stays the same.
-#         mask = np.random.uniform(0, 1, size=[n_pts]) < keep_frac
-#         mask[0] = mask[-1] = True 
 
-#     assert np.isnan(features['speed_knots'].values).sum() == np.isnan(features['course_degrees'].values).sum() == 0, (
-#             'null values are not allow in the data, please filter first')
-
-#     xi = (features.timestamp - features.timestamp.iloc[0]).dt.total_seconds()
-#     interp_t = features.timestamp
-
-#     xi_2, speeds = lin_interp(features, 'speed_knots', t=interp_t, mask=mask)
-#     y0 = speeds
-#     #
-#     _, cos_yi = lin_interp(features, 'course_degrees', t=interp_t, mask=mask, func=cos_deg)
-#     _, sin_yi = lin_interp(features, 'course_degrees', t=interp_t, mask=mask, func=sin_deg)
-#     angle_i = np.arctan2(sin_yi, cos_yi)
-#     y1 = angle_i
-#     #
-#     _, y2 = lin_interp(features, 'lat', t=interp_t, mask=mask)
-#     # Longitude can cross the dateline, so interpolate useing cos / sin
-#     _, cos_yi = lin_interp(features, 'lon', t=interp_t, mask=mask, func=cos_deg)
-#     _, sin_yi = lin_interp(features, 'lon', t=interp_t, mask=mask, func=sin_deg)
-#     y3 = np.degrees(np.arctan2(sin_yi, cos_yi))
-#     # delta times
-#     xp = util.compute_xp(features, mask)
-#     added_dts = util.delta_times(xi, xp) / 60.0
-#     _, base_dts = lin_interp(features, 'min_dt_min', t=interp_t, mask=None)
-#     y4 = (added_dts + base_dts) * 60 # in seconds for compatibility.
-#     #
-#     y = np.transpose([y0, y1, y2, y3, y4])
-#     #
-#     # Quick and dirty nearest neighbor (only works for binary labels I think)
-#     if skip_label:
-#         label_i = defined_i = None
-#     else:
-#         add_obj_data(obj, features)
-#         _, raw_label_i = lin_interp(features, 'is_fishing', t=interp_t, 
-#                                     mask=None) # is it a set
-#         label_i = raw_label_i > 0.5
-
-#         _, raw_defined_i = lin_interp(features, 'is_defined', t=interp_t, 
-#                                       mask=None) # is it a set
-#         defined_i = raw_defined_i > 0.5
-#     #
-#     return interp_t, xi, y, label_i, defined_i
-
-def cook_features(raw_features, angle=None, mean_2 = None, mean_3 = None, noise=None, far_time=3 * 10 * minute):
-    speed = raw_features[:, 0]
+def cook_features(raw_features, angle=None, noise=None, far_time=3 * 10 * minute):
+    speed = raw_features[1:, 0]
     angle = np.random.uniform(0, 2*np.pi) if (angle is None) else angle
-    angle_feat = angle + (np.pi / 2.0 - raw_features[:, 1])
+    angle_feat = angle + (np.pi / 2.0 - raw_features[1:, 1])
     
-    if mean_2 is None:
-        mean_2 = raw_features[:, 2].mean()
-    if mean_3 is None:
-        mean_3 = raw_features[:, 3].mean()
-    d1 = raw_features[:, 2] - mean_2
-    d2 = raw_features[:, 3] - mean_3
+    lat = 0.5 * (raw_features[1:, 2] + raw_features[:-1, 2])
+    scale = np.cos(np.radians(lat))
+    d1 = (raw_features[1:, 2] - raw_features[:-1, 2])
+    d2 = (raw_features[1:, 3] - raw_features[:-1, 3]) * scale
     dir_a = np.cos(angle) * d2 - np.sin(angle) * d1
     dir_b = np.cos(angle) * d1 + np.sin(angle) * d2
 
     if noise is None:
-        noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
-    noisy_time = np.maximum(raw_features[:, 4] / float(far_time) + noise, 0)
+        noise = np.random.normal(0, .05, size=len(raw_features[1:, 4]))
+    noisy_time = np.maximum(raw_features[1:, 4] / float(far_time) + noise, 0)
     is_far = np.exp(-noisy_time) 
-    return np.transpose([speed, 
-                      np.cos(angle_feat), 
-                      np.sin(angle_feat),
-                      dir_a,
-                      dir_b,
-                      is_far
-                      ]), angle, mean_2, mean_3
+    dir_h = np.hypot(dir_a, dir_b)
+    # return np.transpose([speed,
+    #                      np.cos(angle_feat), 
+    #                      np.sin(angle_feat),
+    #                      np.cos(angle_feat) * speed, 
+    #                      np.sin(angle_feat) * speed,
+    #                      dir_h,
+    #                      dir_a / (dir_h + 1e-10),
+    #                      dir_b / (dir_h + 1e-10),
+    #                      dir_a,
+    #                      dir_b,
+    #                      is_far
+    #                      ]), angle
+    return np.transpose([
+                         np.cos(angle_feat) * speed, 
+                         np.sin(angle_feat) * speed,
+                         dir_a,
+                         dir_b,
+                         is_far
+                         ]), angle
 
 def convert_from_features(features, obj=None):
     # Filter features down to just the ssvid / time span we want
@@ -206,11 +162,10 @@ def load_single_data(path, delta, skip_label=False, keep_frac=1, features=None):
         mask = (features.ssvid == ssvid)
         features = features[mask]
         features = features.sort_values(by='timestamp')
-        timestamps = [x.to_pydatetime() for x in features.timestamp]
-        t0 = obj['timestamp'].iloc[0].to_pydatetime()
-        t1 = obj['timestamp'].iloc[-1].to_pydatetime()
-        i0 = np.searchsorted(timestamps, t0, side='left')
-        i1 = np.searchsorted(timestamps, t1, side='right')
+        t0 = obj['timestamp'].iloc[0]
+        t1 = obj['timestamp'].iloc[-1]
+        i0 = np.searchsorted(features.timestamp, t0, side='left')
+        i1 = np.searchsorted(features.timestamp, t1, side='right')
         features = features.iloc[i0:i1]
         # Add fishing data to features
         add_obj_data(obj, features)
@@ -223,38 +178,17 @@ def load_single_data(path, delta, skip_label=False, keep_frac=1, features=None):
             'lon' : features.lon,
             'fishing' : features.fishing,
             })
-
-    t, x, y_tv, label, is_defined = build_features(obj, delta=delta, 
+    t, x, y, label, is_defined = build_features(obj, delta=delta, 
                                             skip_label=skip_label, keep_frac=keep_frac)
-    # else:
-    #     ssvid = os.path.basename(path).split('_')[0]
-    #     mask = features.ssvid == ssvid
-    #     if not mask.sum():
-    #         print('skipping', ssvid)
-    #         return None
-    #     some_features = features[mask]
-    #     some_features = some_features.sort_values(by='timestamp')
-    #     timestamps = [x.to_pydatetime() for x in some_features.timestamp]
-    #     t0 = obj['timestamp'].iloc[0].to_pydatetime()
-    #     t1 = obj['timestamp'].iloc[-1].to_pydatetime()
-    #     i0 = np.searchsorted(timestamps, t0, side='left')
-    #     i1 = np.searchsorted(timestamps, t1, side='right')
-    #     some_features = some_features.iloc[i0:i1]
-    #     if len(some_features) < 2:
-    #         print('skipping 2', ssvid)
-    #         return None
-    #     t, x, y_tv, label, is_defined = build_features_2(obj, some_features, 
-    #                                             skip_label=skip_label, keep_frac=keep_frac)
     t = np.asarray(t)
-
-    return (t, x, y_tv, label, is_defined)
+    return (t, x, y, label, is_defined)
     
 
-def cook_single_data(t, x, y_tv, label, is_defined, start_ndx=0, end_ndx=None):
-    t, x, y_tv, label, is_defined = [v[start_ndx:end_ndx] for v in 
-                                                   (t, x, y_tv, label, is_defined)]     
-    features_tv, angle, mean_2, mean_3 = cook_features(y_tv)
-    return t, features_tv
+def cook_data(t, x, y, label, is_defined, start_ndx=0, end_ndx=None):
+    t, x, y, label, is_defined = [v[start_ndx:end_ndx] for v in 
+                                                   (t, x, y, label, is_defined)]     
+    features, angle = cook_features(y)
+    return t[1:], features
 
     
 
@@ -281,10 +215,9 @@ def generate_data(sets, window, delta, min_samples, label_window=None, seed=888,
     window_pts = window // delta
     lbl_pts = label_window // delta
     lbl_offset = (window_pts - lbl_pts) // 2
-    min_ndx = 0
+    min_ndx = 1
     for p in paths:
         for kf in keep_fracs:
-            
             paired_data = load_single_data(p, delta, skip_label, kf, 
                                 features=precomp_features)
             if paired_data is None:
@@ -292,23 +225,24 @@ def generate_data(sets, window, delta, min_samples, label_window=None, seed=888,
             (t_tv, x_tv, y_tv, label_tv, defined_tv) = paired_data
             
             ### CHANGE could be len(x_tv) or len(x_fv).. they should be the same
+
             max_ndx = len(x_tv) - window_pts
-            if max_ndx < min_ndx:
+            ndxs = []
+            for ndx in range(min_ndx, max_ndx + 1):
+                if defined_tv[ndx:ndx+window_pts].sum() >= window_pts // 2:
+                    ndxs.append(ndx)
+            if not ndxs:
                 print("skipping", p, "because it is too short")
                 continue
-            for _ in range(subsamples):
+            for ss in range(subsamples):
                 KEEP_TRYS = 1000
                 use_local = np.random.choice([True, False])
                 for trys_left in reversed(range(KEEP_TRYS)):
-                    ndx = np.random.randint(min_ndx, max_ndx + 1)                
-                    if trys_left > 0:
-                        if defined_tv[ndx:ndx+window_pts].sum() < window_pts // 2:
-                            continue
-                        if force_local:
-                            if use_local == bool(label_tv[ndx:ndx+window_pts].sum()):
-                                continue
-                    t_chunk, f_chunk = cook_single_data(*paired_data, start_ndx=ndx, 
-                                                                         end_ndx=ndx+window_pts)
+                    ndx = np.random.choice(ndxs)                
+                    if use_local and not bool(label_tv[ndx:ndx+window_pts].sum()):
+                        continue
+                    t_chunk, f_chunk = cook_data(*paired_data, start_ndx=ndx-1, 
+                                                               end_ndx=ndx+window_pts)
                     times.append(t_chunk) 
                     features.append(f_chunk)
 

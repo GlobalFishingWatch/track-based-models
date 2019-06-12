@@ -84,10 +84,7 @@ class BaseModel(object):
             shutil.rmtree(tempdir)
 
     def preprocess(self, x):
-        x = np.asarray(x) # 3 / 4
-        dxy = x[:, 1:, 3:5] - x[:, :-1, 3:5]
-        x = 0.5 * (x[:, 1:, :] + x[:, :-1, :])
-        x[:, :, 3:5] = dxy
+        x = np.asarray(x) 
         return x
     
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
@@ -103,4 +100,4 @@ class BaseModel(object):
 
     def predict(self, x):
         x1 = self.preprocess(x)
-        return self.model.predict(x1)[:, 0] > 0.5
+        return self.model.predict(x1)[:, 0]
