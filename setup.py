@@ -18,7 +18,7 @@ DEPENDENCIES = [
     "keras",
     "numpy",
     "pandas",
-    "tensorflow",
+    # "tensorflow",
     "python-dateutil",
     "google-api-python-client"
 ]
@@ -26,7 +26,7 @@ DEPENDENCIES = [
 
 setuptools.setup(
     name='track_based_models',
-    version='3.0.0',
+    version='0.0.1',
     author='Tim Hochberg',
     author_email='tim@globalfishingwatch.com',
     package_data={},

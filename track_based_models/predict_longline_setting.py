@@ -48,7 +48,7 @@ def features_to_data(features, ssvid=None, t0=None, t1=None):
     if features.dtypes['timestamp'] == _np.dtype('<M8[ns]'):
         timestamps = features.timestamp
     else:
-        timestamps = [dateutil.parser.parse(x) for x in data.timestamp] 
+        timestamps = [dateutil.parser.parse(x) for x in features.timestamp] 
 
     return _pd.DataFrame({
         'timestamp' : timestamps,
