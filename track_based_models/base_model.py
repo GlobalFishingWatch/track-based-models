@@ -78,14 +78,13 @@ class BaseModel(object):
             tempdir = tempfile.mkdtemp()
             try:
                 if path.startswith('gs://'):
-                    new_path = os.path.join(tempdir, os.path.basename(path))
-                    subprocess.check_call(['gsutil', 'cp', path, tempdir])
-                    local_path = new_path
+                    local_path = os.path.join(tempdir, os.path.basename(path))
+                    subprocess.check_call(['gsutil', 'cp', path, local_path])
                 else:
                     local_path = path
                 mdl = cls()
                 mdl.model = load_model(local_path)
-                mdl.normalizer = Normalizer.load(path)
+                mdl.normalizer = Normalizer.load(local_path)
                 cls._mdl_cache[path] = mdl
             finally:
                 shutil.rmtree(tempdir)
