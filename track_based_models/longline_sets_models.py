@@ -29,7 +29,7 @@ class LonglineSetsModelV1(SingleTrackModel):
         
         depth = self.base_filter_count
         
-        input_layer = Input(shape=(self.time_points, 5))
+        input_layer = Input(shape=(self.time_points, 6))
         y = input_layer
         y = Conv1D(depth, 3)(y)
         y = ELU()(y)
@@ -124,7 +124,7 @@ class LonglineSetsModelV1(SingleTrackModel):
                 for ss in range(subsamples):
                     ndx = np.random.choice(ndxs)                
                     t_chunk = t[ndx:ndx+window_pts]
-                    f_chunk, _ = cook_features(y[ndx-1:ndx+window_pts])
+                    f_chunk, _ = cook_features(y[ndx:ndx+window_pts])
                     times.append(t_chunk) 
                     features.append(f_chunk)
                     if skip_label:
@@ -221,25 +221,29 @@ def add_obj_data(obj, features):
 
 
 def cook_features(raw_features, angle=None, noise=None, far_time=3 * 10 * minute):
-    speed = raw_features[1:, 0]
+    speed = raw_features[:, 0]
     angle = np.random.uniform(0, 2*np.pi) if (angle is None) else angle
-    angle_feat = angle + (np.pi / 2.0 - raw_features[1:, 1])
+    angle_feat = angle + (np.pi / 2.0 - raw_features[:, 1])
     
-    lat = 0.5 * (raw_features[1:, 2] + raw_features[:-1, 2])
+    ndx = len(raw_features) // 2
+    lat0 = raw_features[ndx, 2]
+    lon0 = raw_features[ndx, 3]
+    lat = raw_features[:, 2] 
+    lon = raw_features[:, 3] 
     scale = np.cos(np.radians(lat))
-    d1 = (raw_features[1:, 2] - raw_features[:-1, 2])
-    d2 = (raw_features[1:, 3] - raw_features[:-1, 3]) * scale
+    d1 = lat - lat0
+    d2 = (lon - lon0) * scale
     dir_a = np.cos(angle) * d2 - np.sin(angle) * d1
     dir_b = np.cos(angle) * d1 + np.sin(angle) * d2
 
     if noise is None:
-        noise = np.random.normal(0, .05, size=len(raw_features[1:, 4]))
-    noisy_time = np.maximum(raw_features[1:, 4] / float(far_time) + noise, 0)
+        noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+    noisy_time = np.maximum(raw_features[:, 4] / float(far_time) + noise, 0)
     is_far = np.exp(-noisy_time) 
     dir_h = np.hypot(dir_a, dir_b)
-    return np.transpose([
-                         np.cos(angle_feat) * speed, 
-                         np.sin(angle_feat) * speed,
+    return np.transpose([speed,
+                         np.cos(angle_feat), 
+                         np.sin(angle_feat),
                          dir_a,
                          dir_b,
                          is_far
