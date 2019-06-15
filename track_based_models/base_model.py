@@ -80,9 +80,11 @@ class BaseModel(object):
                 if path.startswith('gs://'):
                     new_path = os.path.join(tempdir, os.path.basename(path))
                     subprocess.check_call(['gsutil', 'cp', path, tempdir])
-                    path = new_path
+                    local_path = new_path
+                else:
+                    local_path = path
                 mdl = cls()
-                mdl.model = load_model(path)
+                mdl.model = load_model(local_path)
                 mdl.normalizer = Normalizer.load(path)
                 cls._mdl_cache[path] = mdl
             finally:

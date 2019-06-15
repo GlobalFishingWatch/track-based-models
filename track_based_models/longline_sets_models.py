@@ -12,7 +12,6 @@ from keras import optimizers
 from .util import hour, minute
 from .base_model import hybrid_pool_layer
 from .single_track_model import SingleTrackModel
-from . import longline_sets_data as lsdata
 from . import util
 from .util import minute, lin_interp, cos_deg, sin_deg  
 
