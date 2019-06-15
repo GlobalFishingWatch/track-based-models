@@ -106,18 +106,6 @@ def cook_features(raw_features, angle=None, noise=None, far_time=3 * 10 * minute
     noisy_time = np.maximum(raw_features[1:, 4] / float(far_time) + noise, 0)
     is_far = np.exp(-noisy_time) 
     dir_h = np.hypot(dir_a, dir_b)
-    # return np.transpose([speed,
-    #                      np.cos(angle_feat), 
-    #                      np.sin(angle_feat),
-    #                      np.cos(angle_feat) * speed, 
-    #                      np.sin(angle_feat) * speed,
-    #                      dir_h,
-    #                      dir_a / (dir_h + 1e-10),
-    #                      dir_b / (dir_h + 1e-10),
-    #                      dir_a,
-    #                      dir_b,
-    #                      is_far
-    #                      ]), angle
     return np.transpose([
                          np.cos(angle_feat) * speed, 
                          np.sin(angle_feat) * speed,
@@ -151,8 +139,9 @@ def convert_from_features(features, obj=None):
         'fishing' : features.fishing,
         })
 
-def load_single_data(path, delta, skip_label=False, keep_frac=1, features=None):
-    obj_tv = util.load_data(path, vessel_label=None)  
+def load_data(path, delta, skip_label=False, keep_frac=1, features=None,
+                     vessel_label=None):
+    obj_tv = util.load_data(path, vessel_label=vessel_label)  
     obj = util.convert_from_legacy_format(obj_tv)
     obj['fishing'] = obj_tv['fishing']
     # if features is None:
@@ -184,16 +173,9 @@ def load_single_data(path, delta, skip_label=False, keep_frac=1, features=None):
     return (t, x, y, label, is_defined)
     
 
-def cook_data(t, x, y, label, is_defined, start_ndx=0, end_ndx=None):
-    t, x, y, label, is_defined = [v[start_ndx:end_ndx] for v in 
-                                                   (t, x, y, label, is_defined)]     
-    features, angle = cook_features(y)
-    return t[1:], features
-
-    
-
 def generate_data(sets, window, delta, min_samples, label_window=None, seed=888, skip_label=False,
-                 keep_fracs=(1,), noise=None, force_local=False, precomp_features=None):
+                 keep_fracs=(1,), noise=None, precomp_features=None,
+                 vessel_label=None):
     #paths = make_paths(sets) #dropping for now to pass single path
     paths = sets
     if label_window is None:
@@ -218,51 +200,35 @@ def generate_data(sets, window, delta, min_samples, label_window=None, seed=888,
     min_ndx = 1
     for p in paths:
         for kf in keep_fracs:
-            paired_data = load_single_data(p, delta, skip_label, kf, 
-                                features=precomp_features)
-            if paired_data is None:
+            data = load_data(p, delta, skip_label, kf, 
+                                features=precomp_features, vessel_label=vessel_label)
+            if data is None:
                 continue
-            (t_tv, x_tv, y_tv, label_tv, defined_tv) = paired_data
+            (t, x, y, label, dfnd) = data
             
-            ### CHANGE could be len(x_tv) or len(x_fv).. they should be the same
-
-            max_ndx = len(x_tv) - window_pts
+            max_ndx = len(x) - window_pts
             ndxs = []
             for ndx in range(min_ndx, max_ndx + 1):
-                if defined_tv[ndx:ndx+window_pts].sum() >= window_pts // 2:
+                if dfnd[ndx:ndx+window_pts].sum() >= window_pts // 2:
                     ndxs.append(ndx)
             if not ndxs:
                 print("skipping", p, "because it is too short")
                 continue
             for ss in range(subsamples):
-                KEEP_TRYS = 1000
-                use_local = np.random.choice([True, False])
-                for trys_left in reversed(range(KEEP_TRYS)):
-                    ndx = np.random.choice(ndxs)                
-                    if use_local and not bool(label_tv[ndx:ndx+window_pts].sum()):
-                        continue
-                    t_chunk, f_chunk = cook_data(*paired_data, start_ndx=ndx-1, 
-                                                               end_ndx=ndx+window_pts)
-                    times.append(t_chunk) 
-                    features.append(f_chunk)
-
-                    if skip_label:
-                        transshipping.append(None)
-                        labels.append(None)
-                        defined.append(None)
-                    else:
-                        #######  CHANGES combine tv and fv
-                        transshipping.append(label_tv[ndx:ndx+window_pts]) 
-                        windowed_labels = label_tv[ndx+lbl_offset:ndx+lbl_offset+lbl_pts]
-
-                        lbl = windowed_labels.mean() > 0.5
-                        labels.append(lbl)
-
-                        ###### CHANGES
-                        windowed_defined = defined_tv[ndx+lbl_offset:ndx+lbl_offset+lbl_pts]
-                        dfd = windowed_defined.mean() > 0.5
-                        defined.append(dfd)
-                        ######
-                    break
+                ndx = np.random.choice(ndxs)                
+                t_chunk = t[ndx:ndx+window_pts]
+                f_chunk, _ = cook_features(y[ndx-1:ndx+window_pts])
+                times.append(t_chunk) 
+                features.append(f_chunk)
+                if skip_label:
+                    transshipping.append(None)
+                    labels.append(None)
+                    defined.append(None)
+                else:
+                    transshipping.append(label[ndx:ndx+window_pts]) 
+                    windowed_labels = label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts]
+                    labels.append(windowed_labels.mean() > 0.5)
+                    windowed_defined = dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts]
+                    defined.append(windowed_defined.mean() > 0.5)
                     
     return times, np.array(features), np.array(labels), np.array(transshipping), np.array(defined)  ### CHANGE

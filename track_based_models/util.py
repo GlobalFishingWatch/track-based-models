@@ -150,3 +150,65 @@ def convert_from_legacy_format(data):
             'speed' : np.asarray(data['sogs'])[mask],
             'course' : np.asarray(data['courses'])[mask]
         })
+
+def add_predictions(data, delta, times, predictions, label='inferred'):
+    preds = np.empty(len(data))
+    preds.fill(np.nan)
+    timestamps = [x.to_pydatetime() for x in data.timestamp]
+    for t, p in zip(times, predictions):
+        t0 = t - datetime.timedelta(seconds=delta // 2)
+        t1 = t + datetime.timedelta(seconds=delta // 2)
+        i0 = np.searchsorted(timestamps, t0, side='left')
+        i1 = np.searchsorted(timestamps, t1, side='right')
+        preds[i0:i1] = p
+    data[label] = preds
+
+# TODO: check if this is used
+def convert_from_features(features, obj=None):
+    # Filter features down to just the ssvid / time span we want
+    ssvid = os.path.basename(path).split('_')[0]
+    mask = (features.ssvid == ssvid)
+    features = features[mask]
+    features = features.sort_values(by='timestamp')
+    if obj is not None:
+        timestamps = [x.to_pydatetime() for x in features.timestamp]
+        t0 = obj['timestamp'].iloc[0].to_pydatetime()
+        t1 = obj['timestamp'].iloc[-1].to_pydatetime()
+        i0 = np.searchsorted(timestamps, t0, side='left')
+        i1 = np.searchsorted(timestamps, t1, side='right')
+        features = features.iloc[i0:i1]
+        # Add fishing data to features
+        add_obj_data(obj, features)
+    # Rename so we can use featurs as obj:
+    obj = pd.DataFrame({
+        'timestamp' : features.timestamp,
+        'speed' : features.speed_knots,
+        'course' : features.course_degrees,
+        'lat' : features.lat,
+        'lon' : features.lon,
+        'fishing' : features.fishing,
+        })
+
+def features_to_data(features, ssvid=None, t0=None, t1=None):
+    if ssvid is not None or t0 is not None or t1 is not None:
+        mask = 1
+        if ssvid is not None:
+            mask &= (features.id == ssvid)
+        if t0 is not None:
+            mask &= (features.timestamp >= t0)
+        if t1 is not None:
+            mask &= (features.timestamp <= t1)
+        features = features[mask]
+
+    if features.dtypes['timestamp'] == np.dtype('<M8[ns]'):
+        timestamps = features.timestamp
+    else:
+        timestamps = [dateutil.parser.parse(x) for x in data.timestamp] 
+
+    return pd.DataFrame({
+        'timestamp' : timestamps,
+        'speed' : features.speed_knots,
+        'course' : features.course_degrees,
+        'lat' : features.lat,
+        'lon' : features.lon,
+        })

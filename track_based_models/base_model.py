@@ -10,7 +10,8 @@ import keras
 from keras.layers import ELU, Conv1D, MaxPooling1D, AveragePooling1D
 from keras import backend as K
 from keras.models import load_model
-from .util import minute, hour
+from . import util
+from .util import minute, hour, add_predictions
 
 assert K.image_data_format() == 'channels_last'
 
@@ -60,6 +61,8 @@ def hybrid_pool_layer_2(x):
 
 class BaseModel(object):
     
+    util = util
+
     def flatten(self, x):
         x = np.asarray(x)
         return x.reshape(x.shape[0], -1)
@@ -68,20 +71,24 @@ class BaseModel(object):
         self.model.save(path)
         self.normalizer.save(path, 'r+')
         
+    _mdl_cache = {}
     @classmethod
-    def load(cls, path):
-        tempdir = tempfile.mkdtemp()
-        try:
-            if path.startswith('gs://'):
-                new_path = os.path.join(tempdir, os.path.basename(path))
-                subprocess.check_call(['gsutil', 'cp', path, tempdir])
-                path = new_path
-            mdl = cls()
-            mdl.model = load_model(path)
-            mdl.normalizer = Normalizer.load(path)
-            return mdl
-        finally:
-            shutil.rmtree(tempdir)
+    def load(cls, path, refresh_cache=True):
+        if path not in cls._mdl_cache:
+            tempdir = tempfile.mkdtemp()
+            try:
+                if path.startswith('gs://'):
+                    new_path = os.path.join(tempdir, os.path.basename(path))
+                    subprocess.check_call(['gsutil', 'cp', path, tempdir])
+                    path = new_path
+                mdl = cls()
+                mdl.model = load_model(path)
+                mdl.normalizer = Normalizer.load(path)
+                cls._mdl_cache[path] = mdl
+            finally:
+                shutil.rmtree(tempdir)
+        return cls._mdl_cache[path]
+
 
     def preprocess(self, x):
         x = np.asarray(x) 
@@ -101,3 +108,29 @@ class BaseModel(object):
     def predict(self, x):
         x1 = self.preprocess(x)
         return self.model.predict(x1)[:, 0]
+
+    def predict_set_times(self, data):
+        predictions = []
+        for angle in [77, 167, 180, 270]:
+            features, times = self.create_features_and_times(data, angle=angle)
+            predictions.append(self.predict(features))
+        return times, np.mean(predictions, axis=0) > 0.5
+
+    def augment_data_with_predictions(self, data):
+        """Add predictions to data
+
+        Parameters
+        ----------
+        data : Pandas DataFrame having the following columns
+               derived from AIS data:
+                    timestamp : str
+                    lat : float
+                    lon : float
+                    speed : float
+                    course : float
+                The data should be sorted by timestamp.
+
+        """
+        times, predictioms = self.predict_set_times(data)
+        add_predictions(data, self.delta, times, predictions)
+
