@@ -8,7 +8,7 @@ class SingleTrackModel(BaseModel):
         max_ndx = len(t) - self.time_points
         features = []
         for i in range(min_ndx, max_ndx):
-            raw_features = y[i:i+(self.time_points+1)]
+            raw_features = y[i:i+self.time_points]
             features.append(self.cook_features(raw_features, angle=angle, noise=0)[0])
         times = t[self.time_points//2:-self.time_points//2]
         return features, times
