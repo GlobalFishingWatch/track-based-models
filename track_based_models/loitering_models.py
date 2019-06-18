@@ -78,16 +78,6 @@ class LoiteringModelV1(SingleTrackModel):
         #opt = optimizers.Adam(lr=0.01, decay=0.5)
         model.compile(optimizer=opt, loss='binary_crossentropy', metrics=["accuracy"])
         self.model = model  
- 
-
-    @classmethod
-    def build_features(cls, data, skip_label=True, keep_frac=1.0):
-        return build_features(data, delta=cls.delta, 
-                              skip_label=skip_label, keep_frac=keep_frac)
-                    # source_lbl='transshipping', 
-                    # target_lbl='is_target_encounter',
-                    # defined_vals = [1, 2], true_vals = [1])
-
 
     @classmethod
     def cook_features(cls, raw_features, angle=None, noise=None, 
