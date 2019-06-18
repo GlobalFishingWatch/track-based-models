@@ -7,6 +7,7 @@ import os
 import keras
 from keras.models import Model as KerasModel
 from keras.layers import Dense, Dropout, Flatten, ELU, Input, Conv1D
+from keras.layers import BatchNormalization
 from keras.layers.core import Activation
 from keras import optimizers
 from .util import hour, minute
@@ -24,6 +25,11 @@ class LoiteringModelV1(SingleTrackModel):
 
     base_filter_count = 64
     fc_nodes = 512
+
+    data_source_lbl='transshipping' 
+    data_target_lbl='is_target_encounter'
+    data_defined_vals = (1, 2)
+    data_true_vals = (1,)
     
     def __init__(self):
         
@@ -75,8 +81,12 @@ class LoiteringModelV1(SingleTrackModel):
  
 
     @classmethod
-    def build_features(cls, data, skip_label=True):
-        return build_features(data, delta=cls.delta, skip_label=skip_label)
+    def build_features(cls, data, skip_label=True, keep_frac=1.0):
+        return build_features(data, delta=cls.delta, 
+                              skip_label=skip_label, keep_frac=keep_frac)
+                    # source_lbl='transshipping', 
+                    # target_lbl='is_target_encounter',
+                    # defined_vals = [1, 2], true_vals = [1])
 
 
     @classmethod
@@ -149,74 +159,7 @@ class LoiteringModelV1(SingleTrackModel):
 
 
 
-def build_features(obj, delta=None, interp_t=None, 
-                    skip_label=False, keep_frac=1.0):
-    n_pts = len(obj['lat'])
-    assert 0 < keep_frac <= 1, 'keep frac must be between 0 and 1'
-    if keep_frac == 1:
-        mask = None
-    else:           
-        # Build a random mask with probability keep_frac. Force
-        # first and last point to be true so the time frame
-        # stays the same.
-        mask = np.random.uniform(0, 1, size=[n_pts]) < keep_frac
-        mask[0] = mask[-1] = True 
-        
-    assert np.isnan(obj['speed']).sum() == np.isnan(obj['course']).sum() == 0, (
-            'null values are not allow in the data, please filter first')
 
-    v = np.array(obj['speed'])
-    # Replace missing speeds with arbitrary 3.5 (between setting and hauling)
-    # TODO: use implied speed instead
-    v[np.isnan(v)] = 3.5
-    obj['speed'] = v
-    xi, speeds = lin_interp(obj, 'speed', delta=delta, t=interp_t, mask=mask)
-    y0 = speeds
-    #
-    _, cos_yi = lin_interp(obj, 'course', delta=delta, t=interp_t, mask=mask, func=cos_deg)
-    _, sin_yi = lin_interp(obj, 'course', delta=delta, t=interp_t, mask=mask, func=sin_deg)
-    angle_i = np.arctan2(sin_yi, cos_yi)
-    y1 = angle_i
-    #
-    _, y2 = lin_interp(obj, 'lat', delta=delta, t=interp_t, mask=mask)
-    # Longitude can cross the dateline, so interpolate useing cos / sin
-    _, cos_yi = lin_interp(obj, 'lon', delta=delta, t=interp_t, mask=mask, func=cos_deg)
-    _, sin_yi = lin_interp(obj, 'lon', delta=delta, t=interp_t, mask=mask, func=sin_deg)
-    y3 = np.degrees(np.arctan2(sin_yi, cos_yi))
-    # delta times
-    xp = util.compute_xp(obj, mask)
-    dts = util.delta_times(xi, xp)
-    y4 = dts
-    if 'min_dt_min' in obj:
-        dts += lin_interp(obj, 'min_dt_min', t=interp_t, mask=None) * 60
-    # Times
-    t0 = obj['timestamp'].iloc[0]
-    if interp_t is None:
-        t = [(t0 + datetime.timedelta(seconds=delta * i)) for i in range(len(y1))]
-    else:
-        t = interp_t
-    y = np.transpose([y0, y1, y2, y3, y4])
-    #
-    # Quick and dirty nearest neighbor (only works for binary labels I think)
-    if skip_label:
-        label_i = defined_i = None
-    else:
-        obj['is_defined'] = [0 if i in (0, 3) else 1 for i in obj['transshiping']]
-        obj['is_target_encounter'] = [1 if i == 1 else 0 for i in obj['transshiping']]
-        _, raw_label_i = lin_interp(obj, 'is_target_encounter', delta=delta, t=interp_t, mask=None, # Don't mask labels - use undropped labels for training 
-                                    func=lambda x: np.array(x) == 1) # is it a set
-        label_i = raw_label_i > 0.5
-        _, raw_label_i = lin_interp(obj, 'is_target_encounter', delta=delta, t=interp_t, 
-                                    mask=None, # Don't mask labels - use undropped labels for training 
-                                    func=lambda x: np.array(x) == 1) # is it a set
-        label_i = raw_label_i > 0.5
-
-        _, raw_defined_i = lin_interp(obj, 'is_defined', delta=delta, t=interp_t, 
-                                      mask=None, # Don't mask labels - use undropped labels for training 
-                                      func=lambda x: np.array(x) == 1) # is it a set
-        defined_i = raw_defined_i > 0.5
-    #
-    return t, xi, y, label_i, defined_i
   
 def add_obj_data(obj, features):
     obj['is_defined'] = [0 if i in (0, 3) else 1 for i in obj['transshiping']]
@@ -296,7 +239,7 @@ def load_data(path, delta, skip_label=False, keep_fracs=[1], features=None,
             })
     for kf in keep_fracs:
         try:
-            t, x, y, label, is_defined = build_features(obj, delta=delta, 
+            t, x, y, label, is_defined = LoiteringModelV1.build_features(obj, delta=delta, 
                                             skip_label=skip_label, keep_frac=kf)
         except:
             print('skipping', path, kf)
