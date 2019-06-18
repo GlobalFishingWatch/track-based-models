@@ -1,3 +1,5 @@
+import numpy as np
+from .util import lin_interp
 from .base_model import BaseModel
 
 class SingleTrackModel(BaseModel):
@@ -19,7 +21,8 @@ class SingleTrackModel(BaseModel):
         return features, times
 
     @classmethod
-    def build_features(cls, obj, delta=None, skip_label=False, keep_frac=1.0):
+    def build_features(cls, obj, skip_label=False, keep_frac=1.0):
+        delta = cls.delta
         n_pts = len(obj['lat'])
         assert 0 < keep_frac <= 1, 'keep frac must be between 0 and 1'
         if keep_frac == 1:
