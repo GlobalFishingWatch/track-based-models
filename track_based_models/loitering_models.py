@@ -28,8 +28,11 @@ class LoiteringModelV1(SingleTrackModel):
 
     data_source_lbl='transshipping' 
     data_target_lbl='is_target_encounter'
+    data_undefined_vals = (0, 3)
     data_defined_vals = (1, 2)
     data_true_vals = (1,)
+    data_false_vals = (2,)
+    data_far_time = 3 * 10 * minute
     
     def __init__(self):
         
@@ -79,10 +82,7 @@ class LoiteringModelV1(SingleTrackModel):
         model.compile(optimizer=opt, loss='binary_crossentropy', metrics=["accuracy"])
         self.model = model  
 
-    @classmethod
-    def cook_features(cls, raw_features, angle=None, noise=None, 
-                                            far_time=3 * 10 * minute):
-        return cook_features(raw_features, angle, noise, far_time)
+
 
 
 
@@ -112,7 +112,7 @@ class LoiteringModelV1(SingleTrackModel):
         lbl_offset = (window_pts - lbl_pts) // 2
         min_ndx = 1
         for p in paths:
-            for data in load_data(p, delta, skip_label, 
+            for data in cls.load_data(p, delta, skip_label, 
                                     keep_fracs=keep_fracs, 
                                     features=precomp_features, 
                                     vessel_label=vessel_label):
@@ -132,7 +132,7 @@ class LoiteringModelV1(SingleTrackModel):
                 for ss in range(subsamples):
                     ndx = np.random.choice(ndxs)                
                     t_chunk = t[ndx:ndx+window_pts]
-                    f_chunk, _ = cook_features(y[ndx:ndx+window_pts])
+                    f_chunk, _ = cls.cook_features(y[ndx:ndx+window_pts])
                     times.append(t_chunk) 
                     features.append(f_chunk)
                     if skip_label:
@@ -151,91 +151,12 @@ class LoiteringModelV1(SingleTrackModel):
 
 
   
-def add_obj_data(obj, features):
-    obj['is_defined'] = [0 if i in (0, 3) else 1 for i in obj['transshiping']]
-    obj['is_target_encounter'] = [1 if i == 1 else 0 for i in obj['transshiping']]
-    _, raw_label_i = lin_interp(obj, 'is_target_encounter', t=features.timestamp, 
-                                mask=None, # Don't mask labels - use undropped labels for training 
-                                func=lambda x: np.array(x) == 1) # is it a set
-    features['is_target_encounter'] = raw_label_i > 0.5
-
-    _, raw_defined_i = lin_interp(obj, 'is_defined', t=features.timestamp, 
-                                  mask=None, # Don't mask labels - use undropped labels for training 
-                                  func=lambda x: np.array(x) == 1) # is it a set
-    features['is_defined'] = raw_defined_i > 0.5
-    # Map not defined to 0, is_target to 1, and not_target to 2
-    features['transshiping'] = features['is_defined'] * (
-                                2 - features['is_target_encounter'])
-
-
-def cook_features(raw_features, angle=None, noise=None, far_time=3 * 10 * minute):
-    speed = raw_features[:, 0]
-    angle = np.random.uniform(0, 2*np.pi) if (angle is None) else angle
-    angle_feat = angle + (np.pi / 2.0 - raw_features[:, 1])
-    
-    ndx = len(raw_features) // 2
-    lat0 = raw_features[ndx, 2]
-    lon0 = raw_features[ndx, 3]
-    lat = raw_features[:, 2] 
-    lon = raw_features[:, 3] 
-    scale = np.cos(np.radians(lat))
-    d1 = lat - lat0
-    d2 = (lon - lon0) * scale
-    dir_a = np.cos(angle) * d2 - np.sin(angle) * d1
-    dir_b = np.cos(angle) * d1 + np.sin(angle) * d2
-
-    if noise is None:
-        noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
-    noisy_time = np.maximum(raw_features[:, 4] / float(far_time) + noise, 0)
-    is_far = np.exp(-noisy_time) 
-    dir_h = np.hypot(dir_a, dir_b)
-    return np.transpose([speed,
-                         np.cos(angle_feat), 
-                         np.sin(angle_feat),
-                         dir_a,
-                         dir_b,
-                         is_far
-                         ]), angle
 
 
 
-def load_data(path, delta, skip_label=False, keep_fracs=[1], features=None,
-                     vessel_label=None):
-    obj_tv = util.load_json_data(path, vessel_label=vessel_label)  
-    obj = util.convert_from_legacy_format(obj_tv)
-    obj['transshiping'] = obj_tv['transshiping']
-    # if features is None:
-    if features is not None:
-        # Filter features down to just the ssvid / time span we want
-        ssvid = os.path.basename(path).split('_')[0]
-        mask = (features.ssvid == ssvid)
-        features = features[mask]
-        features = features.sort_values(by='timestamp')
-        t0 = obj['timestamp'].iloc[0]
-        t1 = obj['timestamp'].iloc[-1]
-        i0 = np.searchsorted(features.timestamp, t0, side='left')
-        i1 = np.searchsorted(features.timestamp, t1, side='right')
-        features = features.iloc[i0:i1]
-        # Add transshiping data to features
-        add_obj_data(obj, features)
-        # Rename so we can use features as obj:
-        obj = pd.DataFrame({
-            'timestamp' : features.timestamp,
-            'speed' : features.speed_knots,
-            'course' : features.course_degrees,
-            'lat' : features.lat,
-            'lon' : features.lon,
-            'transshiping' : features.transshiping,
-            })
-    for kf in keep_fracs:
-        try:
-            t, x, y, label, is_defined = LoiteringModelV1.build_features(obj, delta=delta, 
-                                            skip_label=skip_label, keep_frac=kf)
-        except:
-            print('skipping', path, kf)
-            continue
-        t = np.asarray(t)
-        yield (t, x, y, label, is_defined)
+
+
+
     
 
 
