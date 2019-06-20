@@ -192,16 +192,14 @@ class SingleTrackModel(BaseModel):
 
 
     @classmethod
-    def generate_data(cls, paths, min_samples, label_window=None, seed=888, 
+    def generate_data(cls, paths, min_samples, seed=888, 
                     skip_label=False, keep_fracs=(1,), noise=None, 
-                    precomp_features=None, vessel_label=None):
-        window = cls.window
+                    precomp_features=None, vessel_label=None,
+                    extra_time_deltas=0):
         delta = cls.delta
-        if label_window is None:
-            label_window = delta
+        window = cls.window + extra_time_deltas * cls.time_point_delta * delta
+        label_window = delta * (1 + extra_time_deltas * cls.time_point_delta)
         assert window % delta == 0, 'delta must evenly divide window'
-        assert label_window % delta == 0, 'delta must evenly divide label_window'
-        assert window >= label_window, "window must be at least as large as label_window"
         # Weight so that sets with multiple classification get sqrt(n) more representation
         # Since they have some extra information (n is the number of classifications)
         subsamples = int(round(min_samples / np.sqrt(len(paths))))
@@ -245,11 +243,15 @@ class SingleTrackModel(BaseModel):
                         labels.append(None)
                         defined.append(None)
                     else:
+                        # print(label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].shape, 
+                        #     lbl_pts)
                         targets.append(label[ndx:ndx+window_pts]) 
-                        windowed_labels = label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts]
-                        labels.append(windowed_labels.mean() > 0.5)
-                        windowed_defined = dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts]
-                        defined.append(windowed_defined.mean() > 0.5)
+                        windowed_labels = label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
+                            lbl_pts, -1)
+                        labels.append(windowed_labels.mean(axis=-1) > 0.5)
+                        windowed_defined = dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
+                            lbl_pts, -1)
+                        defined.append(windowed_defined.mean(axis=-1) > 0.5)
         return times, np.array(features), np.array(labels), np.array(targets), np.array(defined)  ### CHANGE
 
 
