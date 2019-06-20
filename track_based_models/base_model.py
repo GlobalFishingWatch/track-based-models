@@ -108,13 +108,15 @@ class BaseModel(object):
 
     def predict(self, x):
         x1 = self.preprocess(x)
-        return self.model.predict(x1)[:, 0]
+        return self.model.predict(x1)[:, :, 0]
 
-    def predict_set_times(self, data):
+    def predict_set_times(self, data, max_delta=10):
         predictions = []
         for angle in [77, 167, 180, 270]:
-            features, times = self.create_features_and_times(data, angle=angle)
-            predictions.append(self.predict(features))
+            features, times = self.create_features_and_times(data, angle=angle,
+                                        max_delta=max_delta)
+            predictions_for_angle = np.concatenate(self.predict(features))
+            predictions.append(predictions_for_angle)
         return times, np.mean(predictions, axis=0) > 0.5
 
     def augment_data_with_predictions(self, data):

@@ -8,6 +8,11 @@ from .base_model import BaseModel
 
 class SingleTrackModel(BaseModel):
 
+    delta = None
+    time_points = None
+    time_point_delta = None
+    window = None
+
     data_source_lbl = None 
     data_target_lbl = None
     data_undefined_vals = None
@@ -15,13 +20,16 @@ class SingleTrackModel(BaseModel):
     data_true_vals = None
     data_false_vals = None
 
-    def create_features_and_times(self, data, angle=77):
+    def create_features_and_times(self, data, angle=77, max_deltas=0):
         t, xi, y, label_i, defined_i = self.build_features(data, skip_label=True)
         min_ndx = 0
         max_ndx = len(t) - self.time_points
         features = []
-        for i in range(min_ndx, max_ndx):
-            raw_features = y[i:i+self.time_points]
+        times = []
+        i0 = 0
+        while i0 < max_ndx:
+            i1 = min(i0 + time_points + time_max_deltas * cls.time_point_delta, max_ndx)
+            raw_features = y[i0:i1]
             features.append(self.cook_features(raw_features, angle=angle, noise=0)[0])
         times = t[self.time_points//2:-self.time_points//2]
         return features, times
@@ -99,7 +107,7 @@ class SingleTrackModel(BaseModel):
         angle = np.random.uniform(0, 2*np.pi) if (angle is None) else angle
         angle_feat = angle + (np.pi / 2.0 - raw_features[:, 1])
         
-        ndx = len(raw_features) // 2
+        ndx = np.random.randint(len(raw_features))
         lat0 = raw_features[ndx, 2]
         lon0 = raw_features[ndx, 3]
         lat = raw_features[:, 2] 
