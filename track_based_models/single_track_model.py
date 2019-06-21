@@ -28,7 +28,7 @@ class SingleTrackModel(BaseModel):
         times = []
         i0 = 0
         while i0 < max_ndx:
-            i1 = min(i0 + self.time_points + max_deltas * cls.time_point_delta, max_ndx)
+            i1 = min(i0 + self.time_points + max_deltas * self.time_point_delta, max_ndx)
             raw_features = y[i0:i1]
             features.append(self.cook_features(raw_features, angle=angle, noise=0)[0])
         times = t[self.time_points//2:-self.time_points//2]
