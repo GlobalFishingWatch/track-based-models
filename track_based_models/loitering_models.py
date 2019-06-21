@@ -675,19 +675,19 @@ class LoiteringModelV7(SingleTrackModel):
         o1 = Dropout(0.1)(y)
         y = MaxPooling1D(2)(y)
         
-        d2 = depth = 2 * depth
+        d2 = 3 * depth // 2
         y = Conv1D(depth, 3, activation='relu')(y)
         y = Conv1D(depth, 3, activation='relu')(y)
         o2 = Dropout(0.2)(y)
         y = MaxPooling1D(2)(y)
         
-        d3 = depth = 2 * depth
+        d3 = 3 * depth // 2
         y = Conv1D(depth, 3, activation='relu')(y)
         y = Conv1D(depth, 3, activation='relu')(y)
         o3 = Dropout(0.3)(y)
         y = MaxPooling1D(2)(y)
 
-        depth = 2 * depth
+        depth = 3 * depth // 2
         y = Conv1D(depth, 3, activation='relu')(y)
         y = Conv1D(depth, 3, activation='relu')(y)
         y = Dropout(0.4)(y)
