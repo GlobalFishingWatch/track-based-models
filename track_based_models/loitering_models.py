@@ -719,7 +719,7 @@ class LoiteringModelV7(SingleTrackModel):
         y = Activation('sigmoid')(y)
 
         model = KerasModel(inputs=input_layer, outputs=y)
-        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.05,
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.1,
                                clipnorm=0.5)
 
         model.compile(optimizer=opt, loss='binary_crossentropy', 

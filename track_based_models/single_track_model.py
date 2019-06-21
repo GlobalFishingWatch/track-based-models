@@ -221,7 +221,7 @@ class SingleTrackModel(BaseModel):
         window_pts = window // delta
         lbl_pts = label_window // delta
         lbl_offset = (window_pts - lbl_pts) // 2
-        min_ndx = 1
+        min_ndx = 0
         for p in paths:
             for data in cls.load_data(p, delta, skip_label, 
                                     keep_fracs=keep_fracs, 
@@ -243,7 +243,7 @@ class SingleTrackModel(BaseModel):
                 for ss in range(subsamples):
                     ndx = np.random.choice(ndxs)                
                     t_chunk = t[ndx:ndx+window_pts]
-                    f_chunk, _ = cls.cook_features(y[ndx:ndx+window_pts])
+                    f_chunk, _ = cls.cook_features(y[ndx:ndx+window_pts], noise=noise)
                     times.append(t_chunk) 
                     features.append(f_chunk)
                     if skip_label:
