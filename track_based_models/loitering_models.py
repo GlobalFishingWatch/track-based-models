@@ -549,6 +549,99 @@ class LoiteringModelV5(SingleTrackModel):
         return self
 
 
+class LoiteringModelV6(SingleTrackModel):
+    
+    delta = 10 * minute
+    time_points = 101 # 72 = 12 hours, 120 = 20 hours, should be odd
+    time_point_delta = 8
+    window = time_points * delta
+
+    base_filter_count = 64
+
+    data_source_lbl='transshiping' 
+    data_target_lbl='is_target_encounter'
+    data_undefined_vals = (0, 3)
+    data_defined_vals = (1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (2,)
+    data_far_time = 3 * 10 * minute
+    
+    def __init__(self):
+        
+        self.normalizer = None
+        
+        input_layer = Input(shape=(None, 6))
+
+        d1 = depth = self.base_filter_count        
+        y = input_layer
+        y = Conv1D(depth, 4, activation='relu')(y)
+        y = Conv1D(depth, 3, activation='relu')(y)
+        o1 = y
+        y = MaxPooling1D(2)(y)
+        
+        d2 = depth = 3 * depth // 2
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = o2 = Dropout(0.1)(y)
+        y = MaxPooling1D(2)(y)
+        
+        d3 = depth = 3 * depth // 2
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = o3 = Dropout(0.2)(y)
+        y = MaxPooling1D(2)(y)
+        
+        depth = 3 * depth // 2
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = Dropout(0.3)(y)
+
+
+        # (5 -> 9) -> (18 -> 22) -> (44 -> 48) -> (96, 101) 
+
+        # Upward branch 
+
+        y = keras.layers.UpSampling1D(2)(y) # 10
+        y = keras.layers.Concatenate()([y,  keras.layers.Cropping1D((4,4))(o3)])
+        y = Conv1D(d3, 2, activation='relu')(y)
+        y = Conv1D(d3, 3, activation='relu')(y)
+        y = Conv1D(d3, 3, activation='relu')(y)
+
+        y = keras.layers.UpSampling1D(2)(y) # 10
+        y = keras.layers.Concatenate()([y, keras.layers.Cropping1D((17,17))(o2)])
+        y = Conv1D(d3, 2, activation='relu')(y)
+        y = Conv1D(d2, 3, activation='relu')(y)
+        y = Conv1D(d2, 3, activation='relu')(y)
+
+        y = keras.layers.UpSampling1D(2)(y) # 10
+        y = keras.layers.Concatenate()([y, keras.layers.Cropping1D((43,43))(o1)])
+        y = Conv1D(d3, 2, activation='relu')(y)
+        y = Conv1D(d1, 3, activation='relu')(y)
+        y = Conv1D(d1, 3, activation='relu')(y)
+
+        y = Conv1D(1, 5)(y)
+        y = Activation('sigmoid')(y)
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.05,
+                               clipnorm=1.)
+
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+        self.normalizer = Normalizer().fit(x)
+        x1 = self.preprocess(x)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data)
+        return self
     
 
 
