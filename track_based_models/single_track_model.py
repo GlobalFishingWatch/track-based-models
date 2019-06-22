@@ -23,14 +23,15 @@ class SingleTrackModel(BaseModel):
     def create_features_and_times(self, data, angle=77, max_deltas=0):
         t, xi, y, label_i, defined_i = self.build_features(data, skip_label=True)
         min_ndx = 0
-        max_ndx = len(t) - self.time_points
+        max_ndx = len(y) - self.time_points
         features = []
         times = []
         i0 = 0
         while i0 < max_ndx:
-            i1 = min(i0 + self.time_points + max_deltas * self.time_point_delta, max_ndx)
+            i1 = min(i0 + self.time_points + max_deltas * self.time_point_delta, len(y))
             raw_features = y[i0:i1]
             features.append(self.cook_features(raw_features, angle=angle, noise=0)[0])
+            i0 = i0 + max_deltas * self.time_point_delta + 1
         times = t[self.time_points//2:-self.time_points//2]
         return features, times
 
