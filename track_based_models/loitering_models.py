@@ -720,7 +720,7 @@ class LoiteringModelV7(SingleTrackModel):
 
         model = KerasModel(inputs=input_layer, outputs=y)
         opt = optimizers.Nadam(lr=0.002, schedule_decay=0.1,
-                               clipnorm=0.5)
+                               clipnorm=0.1)
 
         model.compile(optimizer=opt, loss='binary_crossentropy', 
             metrics=["accuracy"], sample_weight_mode="temporal")
