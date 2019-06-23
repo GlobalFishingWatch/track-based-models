@@ -937,7 +937,7 @@ class LoiteringModelV10(SingleTrackModel):
     time_point_delta = 1
     window = time_points * delta
 
-    base_filter_count = 64
+    base_filter_count = 32
 
     data_source_lbl='transshiping' 
     data_target_lbl='is_target_encounter'
