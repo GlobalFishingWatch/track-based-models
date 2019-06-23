@@ -928,4 +928,117 @@ class LoiteringModelV9(SingleTrackModel):
                       validation_split=validation_split, 
                       validation_data=validation_data)
         return self
+
+
+class LoiteringModelV10(SingleTrackModel):
+    
+    delta = 10 * minute
+    time_points = 65 # 72 = 12 hours, 120 = 20 hours, should be odd
+    time_point_delta = 1
+    window = time_points * delta
+
+    base_filter_count = 64
+
+    data_source_lbl='transshiping' 
+    data_target_lbl='is_target_encounter'
+    data_undefined_vals = (0, 3)
+    data_defined_vals = (1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (2,)
+    data_far_time = 3 * 10 * minute
+    
+    def __init__(self):
+        
+        self.normalizer = None
+        
+        d1 = depth = self.base_filter_count
+        
+        input_layer = Input(shape=(None, 6))
+        y = input_layer
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y1 = Conv1D(depth, 3)(y)
+        y1 = ReLU()(y1)
+        y1 = BatchNormalization(scale=False, center=False)(y1)
+        y2 = MaxPooling1D(3, strides=1)(y)
+        y = Concatenate()([y1, y2])
+        y = Conv1D(depth, 1)(y)
+
+
+        
+        y = Conv1D(depth, 3, dilation_rate=2)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y1 = Conv1D(depth, 3, dilation_rate=2)(y)
+        y1 = ReLU()(y1)
+        y1 = BatchNormalization(scale=False, center=False)(y1)
+        y2 = MaxPooling1D(3, strides=1)(y)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y = Concatenate()([y1, y2])
+        y = Conv1D(depth, 1)(y)
+        
+        y = Conv1D(depth, 3, dilation_rate=4)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y1 = Conv1D(depth, 3, dilation_rate=4)(y)
+        y1 = ReLU()(y1)
+        y1 = BatchNormalization(scale=False, center=False)(y1)
+        y2 = MaxPooling1D(3, strides=1)(y)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y = Concatenate()([y1, y2])
+        y = Conv1D(depth, 1)(y)
+
+        y = Conv1D(depth, 3, dilation_rate=8)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y1 = Conv1D(depth, 3, dilation_rate=8)(y)
+        y1 = ReLU()(y1)
+        y1 = BatchNormalization(scale=False, center=False)(y1)
+        y2 = MaxPooling1D(3, strides=1)(y)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y2 = MaxPooling1D(3, strides=1)(y2)
+        y = Concatenate()([y1, y2])
+        y = Conv1D(depth, 1)(y)
+
+        y = Conv1D(depth, 3, dilation_rate=1)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = Conv1D(depth, 3, dilation_rate=1)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+
+        # (1 - 5) (5 37) (37 53) (53 61) (61 65)
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.05)
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+        self.normalizer = Normalizer().fit(x)
+        x1 = self.preprocess(x)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data)
+        return self
     
