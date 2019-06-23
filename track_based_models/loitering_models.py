@@ -1265,7 +1265,7 @@ class LoiteringModelV11(SingleTrackModel):
         o2 = y
         y = MaxPooling1D(2)(y)
         
-        d2 = depth = 12 * (depth // 7)
+        d3 = depth = 12 * (depth // 7)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = GroupNormalization(groups=12, scale=False, center=False)(y)
@@ -1275,7 +1275,7 @@ class LoiteringModelV11(SingleTrackModel):
         o3 = y
         y = MaxPooling1D(2)(y)
         
-        d2 = depth = 12 * (depth // 7)
+        d4 = depth = 12 * (depth // 7)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = GroupNormalization(groups=12, scale=False, center=False)(y)
