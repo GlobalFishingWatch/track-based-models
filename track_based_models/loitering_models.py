@@ -603,6 +603,109 @@ class LoiteringModelV4(SingleTrackModel):
         return self
 
 
+class LoiteringModelV4s(SingleTrackModel):
+    
+    delta = 10 * minute
+    time_points = 93 # 72 = 12 hours, 120 = 20 hours, should be odd
+    time_point_delta = 8
+    window = time_points * delta
+
+    base_filter_count = 16
+
+    data_source_lbl='transshiping' 
+    data_target_lbl='is_target_encounter'
+    data_undefined_vals = (0, 3)
+    data_defined_vals = (1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (2,)
+    data_far_time = 3 * 10 * minute
+    
+    def __init__(self):
+        
+        self.normalizer = None
+        
+        d1 = depth = self.base_filter_count
+        
+        input_layer = Input(shape=(None, 6))
+        y = input_layer
+        y = Conv1D(depth, 6)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        o1 = y
+        y = MaxPooling1D(2)(y)
+        
+        d2 = depth = 3 * depth // 2
+        y = Conv1D(depth, 5)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        o2 = y
+        y = MaxPooling1D(2)(y)
+        
+        d3 = depth = 3 * depth // 2
+        y = Conv1D(depth, 5)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        o3 = y
+        y = MaxPooling1D(2)(y)
+        
+        depth = 3 * depth // 2
+        y = Conv1D(depth, 5)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+
+        # (4 -> 8) -> (16 -> 20) -> (40 -> 44) -> (88, 93) 
+
+        # Upward branch 
+
+        y = Conv1DTranspose(y, d3, 2, strides=2, padding='same') # 7.5 / 8
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = keras.layers.Concatenate()([y,  keras.layers.Cropping1D((4,4))(o3)])
+        y = Conv1D(d3, 5)(y)
+        y = ReLU()(y)
+
+        y = Conv1DTranspose(y, d2, 2, strides=2, padding='same') # 7 / 8
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = keras.layers.Concatenate()([y, keras.layers.Cropping1D((16,16))(o2)])
+        y = Conv1D(d2, 5)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+
+        y = Conv1DTranspose(y, d1, 2, strides=2, padding='same') # 6 / 8
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = keras.layers.Concatenate()([y, keras.layers.Cropping1D((40,40))(o1)])
+        y = Conv1D(d1, 5)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+
+        y = Conv1D(1, 4)(y)
+        y = Activation('sigmoid')(y)
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.05)
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+        self.normalizer = Normalizer().fit(x)
+        x1 = self.preprocess(x)
+        print(np.shape(x1), np.shape(labels))
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data)
+        return self
+
 
 class LoiteringModelV5(SingleTrackModel):
     
@@ -704,6 +807,7 @@ class LoiteringModelV5(SingleTrackModel):
         y = BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(d1, 3)(y)
         y = ReLU()(y) # 2 / 4
+        y = BatchNormalization(scale=False, center=False)(y) # 5
 
         y = Conv1D(1, 5)(y)
         y = Activation('sigmoid')(y)
@@ -806,7 +910,7 @@ class LoiteringModelV6(SingleTrackModel):
 
         model = KerasModel(inputs=input_layer, outputs=y)
         opt = optimizers.Nadam(lr=0.002, schedule_decay=0.05,
-                               clipnorm=0.1)
+                               clipnorm=1.)
 
         model.compile(optimizer=opt, loss='binary_crossentropy', 
             metrics=["accuracy"], sample_weight_mode="temporal")
