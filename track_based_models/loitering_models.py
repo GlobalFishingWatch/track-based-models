@@ -1242,8 +1242,8 @@ class LoiteringModelV11(SingleTrackModel):
         
         self.normalizer = None
         
-        d1 = depth = self.base_filter_count
-        groups = g1 = depth // 16
+        groups = g1 = self.base_filter_count // 16
+        d1 = depth = 16 * groups
         
         input_layer = Input(shape=(None, 6))
         y = input_layer
@@ -1256,7 +1256,8 @@ class LoiteringModelV11(SingleTrackModel):
         o1 = y
         y = MaxPooling1D(2)(y)
         
-        d2 = depth = 16 * (depth // 5)
+        groups = g2 = 3 * groups // 2
+        d2 = depth = 16 * groups
         groups = g1 = depth // 16
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
@@ -1267,8 +1268,8 @@ class LoiteringModelV11(SingleTrackModel):
         o2 = Dropout(0.1)(y)
         y = MaxPooling1D(2)(y)
         
-        d3 = depth = 16 * (depth // 5)
-        groups = g1 = depth // 16
+        groups = g3 = 3 * groups // 2
+        d3 = depth = 16 * groups
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = GroupNormalization(groups=groups, scale=False, center=False)(y)
@@ -1278,7 +1279,8 @@ class LoiteringModelV11(SingleTrackModel):
         o3 = Dropout(0.2)(y)
         y = MaxPooling1D(2)(y)
         
-        d4 = depth = 16 * (depth // 5)
+        groups = g4 = 3 * groups // 2
+        d4 = depth = 16 * groups
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = GroupNormalization(groups=groups, scale=False, center=False)(y)
