@@ -645,7 +645,7 @@ class LoiteringModelV5(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        o2 = y
+        o2 = Dropout(0.1)(y)
         y = MaxPooling1D(2)(y)
         
         d3 = depth = 3 * depth // 2
@@ -655,7 +655,7 @@ class LoiteringModelV5(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        o3 = y
+        o3 = Dropout(0.2)(y)
         y = MaxPooling1D(2)(y)
         
         depth = 3 * depth // 2
@@ -665,6 +665,7 @@ class LoiteringModelV5(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
+        y = Dropout(0.3)(y)
 
         # (5 -> 9) -> (18 -> 22) -> (44 -> 48) -> (96, 101) 
 
@@ -674,37 +675,28 @@ class LoiteringModelV5(SingleTrackModel):
         y = keras.layers.Concatenate()([y,  keras.layers.Cropping1D((4,4))(o3)])
         y = Conv1D(d3, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(d3, 3)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(d3, 3)(y)
         y = ReLU()(y) # 3.5 / 4
-        y = BatchNormalization(scale=False, center=False)(y) # 5
 
         y = keras.layers.UpSampling1D(2)(y) # 10
         y = keras.layers.Concatenate()([y, keras.layers.Cropping1D((17,17))(o2)])
         y = Conv1D(d3, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(d2, 3)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(d2, 3)(y)
         y = ReLU()(y) # 3 / 4
-        y = BatchNormalization(scale=False, center=False)(y) # 5
 
         y = keras.layers.UpSampling1D(2)(y) # 10
         y = keras.layers.Concatenate()([y, keras.layers.Cropping1D((43,43))(o1)])
         y = Conv1D(d3, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(d1, 3)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(d1, 3)(y)
         y = ReLU()(y) # 2 / 4
-        y = BatchNormalization(scale=False, center=False)(y) # 5
 
         y = Conv1D(1, 5)(y)
         y = Activation('sigmoid')(y)
@@ -807,7 +799,7 @@ class LoiteringModelV6(SingleTrackModel):
 
         model = KerasModel(inputs=input_layer, outputs=y)
         opt = optimizers.Nadam(lr=0.002, schedule_decay=0.05,
-                               clipnorm=1.)
+                               clipnorm=0.1)
 
         model.compile(optimizer=opt, loss='binary_crossentropy', 
             metrics=["accuracy"], sample_weight_mode="temporal")
