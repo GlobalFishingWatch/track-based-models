@@ -1243,45 +1243,49 @@ class LoiteringModelV11(SingleTrackModel):
         self.normalizer = None
         
         d1 = depth = self.base_filter_count
+        groups = g1 = depth // 16
         
         input_layer = Input(shape=(None, 6))
         y = input_layer
         y = Conv1D(depth, 4)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=groups, scale=False, center=False)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=groups, scale=False, center=False)(y)
         o1 = y
         y = MaxPooling1D(2)(y)
         
-        d2 = depth = 12 * (depth // 7)
+        d2 = depth = 16 * (depth // 5)
+        groups = g1 = depth // 16
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=groups, scale=False, center=False)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
-        o2 = y
+        y = GroupNormalization(groups=groups, scale=False, center=False)(y)
+        o2 = Dropout(0.1)(y)
         y = MaxPooling1D(2)(y)
         
-        d3 = depth = 12 * (depth // 7)
+        d3 = depth = 16 * (depth // 5)
+        groups = g1 = depth // 16
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=groups, scale=False, center=False)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
-        o3 = y
+        y = GroupNormalization(groups=groups, scale=False, center=False)(y)
+        o3 = Dropout(0.2)(y)
         y = MaxPooling1D(2)(y)
         
-        d4 = depth = 12 * (depth // 7)
+        d4 = depth = 16 * (depth // 5)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=groups, scale=False, center=False)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=groups, scale=False, center=False)(y)
+        y = Dropout(0.3)(y)
 
         # (5 -> 9) -> (18 -> 22) -> (44 -> 48) -> (96, 101) 
 
@@ -1291,34 +1295,34 @@ class LoiteringModelV11(SingleTrackModel):
         y = keras.layers.Concatenate()([y,  keras.layers.Cropping1D((4,4))(o3)])
         y = Conv1D(d3, 2)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=g1, scale=False, center=False)(y)
         y = Conv1D(d3, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=g1, scale=False, center=False)(y)
         y = Conv1D(d3, 3)(y)
         y = ReLU()(y) # 3.5 / 4
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=g1, scale=False, center=False)(y)
 
         y = keras.layers.UpSampling1D(2)(y) # 10
         y = keras.layers.Concatenate()([y, keras.layers.Cropping1D((17,17))(o2)])
         y = Conv1D(d3, 2)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=g2, scale=False, center=False)(y)
         y = Conv1D(d2, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=g2, scale=False, center=False)(y)
         y = Conv1D(d2, 3)(y)
         y = ReLU()(y) # 3 / 4
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=g2, scale=False, center=False)(y)
 
         y = keras.layers.UpSampling1D(2)(y) # 10
         y = keras.layers.Concatenate()([y, keras.layers.Cropping1D((43,43))(o1)])
         y = Conv1D(d3, 2)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=g3, scale=False, center=False)(y)
         y = Conv1D(d1, 3)(y)
         y = ReLU()(y)
-        y = GroupNormalization(groups=12, scale=False, center=False)(y)
+        y = GroupNormalization(groups=g3, scale=False, center=False)(y)
         y = Conv1D(d1, 3)(y)
         y = ReLU()(y) # 2 / 4
 
