@@ -641,7 +641,9 @@ class LoiteringModelV4(SingleTrackModel):
         y = ReLU()(y) # 2 / 4
         y = BatchNormalization(scale=False, center=False)(y)
 
-        y = Conv1D(1, 4)(y)
+        y = Conv1D(d1, 4)(y)
+        y = ReLU()(y)
+        y = Conv1D(1, 1)(y)
         y = Activation('sigmoid')(y)
 
         model = KerasModel(inputs=input_layer, outputs=y)
