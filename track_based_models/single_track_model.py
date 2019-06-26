@@ -260,7 +260,9 @@ class SingleTrackModel(BaseModel):
                         labels.append(windowed_labels.mean(axis=-1) > 0.5)
                         windowed_defined = dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
                             lbl_pts, -1)
-                        defined.append(windowed_defined.mean(axis=-1) > 0.5)
+                        defined.append((windowed_defined.mean(axis=-1) > 0.5) &
+                            ((windowed_labels.mean(axis=-1) < 0.3) | 
+                                (windowed_labels.mean(axis=-1) > 0.7)))
         return times, np.array(features), np.array(labels), np.array(targets), np.array(defined)  ### CHANGE
 
 
