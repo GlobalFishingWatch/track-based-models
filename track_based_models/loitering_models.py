@@ -759,7 +759,8 @@ class LoiteringModelV4s(SingleTrackModel):
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
 
-    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, 
+            validation_data=0, verbose=1):
         self.normalizer = Normalizer().fit(x)
         x1 = self.preprocess(x)
         print(np.shape(x1), np.shape(labels))
@@ -770,7 +771,8 @@ class LoiteringModelV4s(SingleTrackModel):
         self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
-                      validation_data=validation_data)
+                      validation_data=validation_data,
+                      verbose=verbose)
         return self
 
 
@@ -1271,7 +1273,8 @@ class LoiteringModelV8(SingleTrackModel):
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
 
-    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1):
         self.normalizer = Normalizer().fit(x)
         x1 = self.preprocess(x)
         l1 = np.asarray(labels).reshape(len(labels), -1, 1)
@@ -1281,7 +1284,8 @@ class LoiteringModelV8(SingleTrackModel):
         self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
-                      validation_data=validation_data)
+                      validation_data=validation_data,
+                      verbose=verbose)
         return self
 
 
@@ -1373,7 +1377,8 @@ class LoiteringModelV9(SingleTrackModel):
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
 
-    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1):
         self.normalizer = Normalizer().fit(x)
         x1 = self.preprocess(x)
         l1 = np.asarray(labels).reshape(len(labels), -1, 1)
@@ -1383,7 +1388,8 @@ class LoiteringModelV9(SingleTrackModel):
         self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
-                      validation_data=validation_data)
+                      validation_data=validation_data,
+                      verbose=verbose)
         return self
 
 
@@ -1479,7 +1485,8 @@ class LoiteringModelV10(SingleTrackModel):
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
 
-    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+        validation_split=0, validation_data=0, verbose=1):
         self.normalizer = Normalizer().fit(x)
         x1 = self.preprocess(x)
         l1 = np.asarray(labels).reshape(len(labels), -1, 1)
@@ -1489,7 +1496,8 @@ class LoiteringModelV10(SingleTrackModel):
         self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
-                      validation_data=validation_data)
+                      validation_data=validation_data,
+                      verbose=verbose)
         return self
 
 
@@ -1614,7 +1622,8 @@ class LoiteringModelV11(SingleTrackModel):
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
 
-    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0,
+            verbose=1):
         self.normalizer = Normalizer().fit(x)
         x1 = self.preprocess(x)
         l1 = np.asarray(labels).reshape(len(labels), -1, 1)
@@ -1624,6 +1633,7 @@ class LoiteringModelV11(SingleTrackModel):
         self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
-                      validation_data=validation_data)
+                      validation_data=validation_data,
+                      verbose=verbose)
         return self
     
