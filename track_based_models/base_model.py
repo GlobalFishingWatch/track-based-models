@@ -95,7 +95,8 @@ class BaseModel(object):
         x = np.asarray(x) 
         return x
     
-    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0,
+			verbose=1):
         self.normalizer = Normalizer().fit(x)
         x1 = self.preprocess(x)
         l1 = np.asarray(labels).reshape((len(labels), 1))
@@ -103,7 +104,8 @@ class BaseModel(object):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
         return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, sample_weight=sample_weight,
-                      validation_split=validation_split, validation_data=validation_data)
+                      validation_split=validation_split, validation_data=validation_data, verbose=verbose)
+
 
     def predict(self, x):
         x1 = self.preprocess(x)
