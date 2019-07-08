@@ -102,9 +102,8 @@ class BaseModel(object):
         if validation_data not in (None, 0):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
-        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, sample_weight=sample_weight,
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, sample_weight=sample_weight,
                       validation_split=validation_split, validation_data=validation_data)
-        return self
 
     def predict(self, x):
         x1 = self.preprocess(x)
