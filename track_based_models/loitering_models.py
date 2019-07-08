@@ -1281,12 +1281,11 @@ class LoiteringModelV8(SingleTrackModel):
         if validation_data not in (None, 0):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
-        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data,
                       verbose=verbose)
-        return self
 
 
 class LoiteringModelV9(SingleTrackModel):
@@ -1385,12 +1384,11 @@ class LoiteringModelV9(SingleTrackModel):
         if validation_data not in (None, 0):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
-        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data,
                       verbose=verbose)
-        return self
 
 
 class LoiteringModelV10(SingleTrackModel):
@@ -1493,12 +1491,11 @@ class LoiteringModelV10(SingleTrackModel):
         if validation_data not in (None, 0):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
-        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data,
                       verbose=verbose)
-        return self
 
 
 
@@ -1630,10 +1627,9 @@ class LoiteringModelV11(SingleTrackModel):
         if validation_data not in (None, 0):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
-        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data,
                       verbose=verbose)
-        return self
     
