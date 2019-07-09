@@ -663,11 +663,10 @@ class LoiteringModelV4(SingleTrackModel):
         if validation_data not in (None, 0):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
-        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data)
-        return self
 
 
 class LoiteringModelV4s(SingleTrackModel):
@@ -768,12 +767,11 @@ class LoiteringModelV4s(SingleTrackModel):
         if validation_data not in (None, 0):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
-        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data,
                       verbose=verbose)
-        return self
 
 
 class LoiteringModelV4sb(SingleTrackModel):
@@ -873,11 +871,10 @@ class LoiteringModelV4sb(SingleTrackModel):
         if validation_data not in (None, 0):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
-        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data)
-        return self
 
 
 class LoiteringModelV5(SingleTrackModel):
