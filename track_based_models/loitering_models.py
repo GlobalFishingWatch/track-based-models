@@ -1398,8 +1398,9 @@ class LoiteringModelV8Max(SingleTrackModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
 
-        ym = MaxPooling1D(depth, 5)(y)
-        y = Concatenate()([y[:, 2:-2], ym])
+        y0 = Cropping1D((2, 2))(y)
+        y1 = MaxPooling1D(depth, 5)(y)
+        y = Concatenate()([y0, y1])
         y = Conv1D(depth, 1)(y)
 
         y = Conv1D(depth, 3, dilation_rate=1)(y)
@@ -1409,8 +1410,9 @@ class LoiteringModelV8Max(SingleTrackModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
 
-        ym = MaxPooling1D(depth, 5)(y)
-        y = Concatenate()([y[:, 2:-2], ym])
+        y0 = Cropping1D((2, 2))(y)
+        y1 = MaxPooling1D(depth, 5)(y)
+        y = Concatenate()([y0, y1])
         y = Conv1D(depth, 1)(y)
 
         y = Conv1D(depth, 3, dilation_rate=1)(y)
