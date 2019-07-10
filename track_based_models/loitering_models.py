@@ -8,6 +8,7 @@ import keras
 from keras.models import Model as KerasModel
 from keras.layers import Dense, Dropout, Flatten, ELU, ReLU, Input, Conv1D
 from keras.layers import BatchNormalization, MaxPooling1D, Concatenate
+from keras.layers import Cropping1D
 from keras.layers.core import Activation, Reshape
 from keras import optimizers
 from .util import hour, minute
