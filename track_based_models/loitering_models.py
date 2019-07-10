@@ -1400,7 +1400,7 @@ class LoiteringModelV8Max(SingleTrackModel):
         y = BatchNormalization(scale=False, center=False)(y)
 
         y0 = Cropping1D((2, 2))(y)
-        y1 = MaxPooling1D(depth, 5, strides=1)(y)
+        y1 = MaxPooling1D(5, strides=1)(y)
         y = Concatenate()([y0, y1])
         y = Conv1D(depth, 1)(y)
 
@@ -1412,7 +1412,7 @@ class LoiteringModelV8Max(SingleTrackModel):
         y = BatchNormalization(scale=False, center=False)(y)
 
         y0 = Cropping1D((2, 2))(y)
-        y1 = MaxPooling1D(depth, 5, strides=1)(y)
+        y1 = MaxPooling1D(5, strides=1)(y)
         y = Concatenate()([y0, y1])
         y = Conv1D(depth, 1)(y)
 
