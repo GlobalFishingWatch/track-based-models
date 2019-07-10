@@ -1271,7 +1271,7 @@ class LoiteringModelV8(SingleTrackModel):
         self.model = model  
 
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
-            validation_split=0, validation_data=0, verbose=1):
+            validation_split=0, validation_data=0, verbose=1, callbacks=[]):
         self.normalizer = Normalizer().fit(x)
         x1 = self.preprocess(x)
         l1 = np.asarray(labels).reshape(len(labels), -1, 1)
@@ -1282,8 +1282,11 @@ class LoiteringModelV8(SingleTrackModel):
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data,
-                      verbose=verbose)
+                      verbose=verbose, callbacks=callbacks)
 
+
+class LoiteringModelV8_128(LoiteringModelV8):
+	base_filter_count = 128
 
 class LoiteringModelV9(SingleTrackModel):
     
