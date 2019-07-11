@@ -95,26 +95,29 @@ class BaseModel(object):
         x = np.asarray(x) 
         return x
     
-    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0):
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0,
+			verbose=1):
         self.normalizer = Normalizer().fit(x)
         x1 = self.preprocess(x)
         l1 = np.asarray(labels).reshape((len(labels), 1))
         if validation_data not in (None, 0):
             a, b, c = validation_data
             validation_data = self.preprocess(a), b, c
-        self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, sample_weight=sample_weight,
-                      validation_split=validation_split, validation_data=validation_data)
-        return self
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, sample_weight=sample_weight,
+                      validation_split=validation_split, validation_data=validation_data, verbose=verbose)
+
 
     def predict(self, x):
         x1 = self.preprocess(x)
-        return self.model.predict(x1)[:, 0]
+        return self.model.predict(x1)[:, :, 0]
 
-    def predict_set_times(self, data):
+    def predict_set_times(self, data, max_deltas=0):
         predictions = []
         for angle in [77, 167, 180, 270]:
-            features, times = self.create_features_and_times(data, angle=angle)
-            predictions.append(self.predict(features))
+            features, times = self.create_features_and_times(data, angle=angle,
+                                        max_deltas=max_deltas)
+            predictions_for_angle = np.concatenate(self.predict(features))
+            predictions.append(predictions_for_angle)
         return times, np.mean(predictions, axis=0) > 0.5
 
     def augment_data_with_predictions(self, data):

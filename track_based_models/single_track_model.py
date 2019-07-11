@@ -8,6 +8,11 @@ from .base_model import BaseModel
 
 class SingleTrackModel(BaseModel):
 
+    delta = None
+    time_points = None
+    time_point_delta = None
+    window = None
+
     data_source_lbl = None 
     data_target_lbl = None
     data_undefined_vals = None
@@ -15,14 +20,18 @@ class SingleTrackModel(BaseModel):
     data_true_vals = None
     data_false_vals = None
 
-    def create_features_and_times(self, data, angle=77):
+    def create_features_and_times(self, data, angle=77, max_deltas=0):
         t, xi, y, label_i, defined_i = self.build_features(data, skip_label=True)
         min_ndx = 0
-        max_ndx = len(t) - self.time_points
+        max_ndx = len(y) - self.time_points
         features = []
-        for i in range(min_ndx, max_ndx):
-            raw_features = y[i:i+self.time_points]
+        times = []
+        i0 = 0
+        while i0 < max_ndx:
+            i1 = min(i0 + self.time_points + max_deltas * self.time_point_delta, len(y))
+            raw_features = y[i0:i1]
             features.append(self.cook_features(raw_features, angle=angle, noise=0)[0])
+            i0 = i0 + max_deltas * self.time_point_delta + 1
         times = t[self.time_points//2:-self.time_points//2]
         return features, times
 
@@ -99,7 +108,7 @@ class SingleTrackModel(BaseModel):
         angle = np.random.uniform(0, 2*np.pi) if (angle is None) else angle
         angle_feat = angle + (np.pi / 2.0 - raw_features[:, 1])
         
-        ndx = len(raw_features) // 2
+        ndx = np.random.randint(len(raw_features))
         lat0 = raw_features[ndx, 2]
         lon0 = raw_features[ndx, 3]
         lat = raw_features[:, 2] 
@@ -192,16 +201,14 @@ class SingleTrackModel(BaseModel):
 
 
     @classmethod
-    def generate_data(cls, paths, min_samples, label_window=None, seed=888, 
+    def generate_data(cls, paths, min_samples, seed=888, 
                     skip_label=False, keep_fracs=(1,), noise=None, 
-                    precomp_features=None, vessel_label=None):
-        window = cls.window
+                    precomp_features=None, vessel_label=None,
+                    extra_time_deltas=0):
         delta = cls.delta
-        if label_window is None:
-            label_window = delta
+        window = cls.window + extra_time_deltas * cls.time_point_delta * delta
+        label_window = delta * (1 + extra_time_deltas * cls.time_point_delta)
         assert window % delta == 0, 'delta must evenly divide window'
-        assert label_window % delta == 0, 'delta must evenly divide label_window'
-        assert window >= label_window, "window must be at least as large as label_window"
         # Weight so that sets with multiple classification get sqrt(n) more representation
         # Since they have some extra information (n is the number of classifications)
         subsamples = int(round(min_samples / np.sqrt(len(paths))))
@@ -215,7 +222,7 @@ class SingleTrackModel(BaseModel):
         window_pts = window // delta
         lbl_pts = label_window // delta
         lbl_offset = (window_pts - lbl_pts) // 2
-        min_ndx = 1
+        min_ndx = 0
         for p in paths:
             for data in cls.load_data(p, delta, skip_label, 
                                     keep_fracs=keep_fracs, 
@@ -237,7 +244,7 @@ class SingleTrackModel(BaseModel):
                 for ss in range(subsamples):
                     ndx = np.random.choice(ndxs)                
                     t_chunk = t[ndx:ndx+window_pts]
-                    f_chunk, _ = cls.cook_features(y[ndx:ndx+window_pts])
+                    f_chunk, _ = cls.cook_features(y[ndx:ndx+window_pts], noise=noise)
                     times.append(t_chunk) 
                     features.append(f_chunk)
                     if skip_label:
@@ -245,11 +252,17 @@ class SingleTrackModel(BaseModel):
                         labels.append(None)
                         defined.append(None)
                     else:
+                        # print(label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].shape, 
+                        #     lbl_pts)
                         targets.append(label[ndx:ndx+window_pts]) 
-                        windowed_labels = label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts]
-                        labels.append(windowed_labels.mean() > 0.5)
-                        windowed_defined = dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts]
-                        defined.append(windowed_defined.mean() > 0.5)
+                        windowed_labels = label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
+                            lbl_pts, -1)
+                        labels.append(windowed_labels.mean(axis=-1) > 0.5)
+                        windowed_defined = dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
+                            lbl_pts, -1)
+                        defined.append((windowed_defined.mean(axis=-1) > 0.5) &
+                            ((windowed_labels.mean(axis=-1) < 0.3) | 
+                                (windowed_labels.mean(axis=-1) > 0.7)))
         return times, np.array(features), np.array(labels), np.array(targets), np.array(defined)  ### CHANGE
 
 
