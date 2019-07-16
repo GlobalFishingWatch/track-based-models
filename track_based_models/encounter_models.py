@@ -81,7 +81,7 @@ class ConvNetModel4(DualTrackModel):
     delta = 10 * minute
     time_points = 73
     window = time_points * delta
-    time_point_delta = 8
+    time_point_delta = 1
 
     data_source_lbl='transshiping' 
     data_target_lbl='is_target_encounter'
@@ -90,7 +90,6 @@ class ConvNetModel4(DualTrackModel):
     data_far_time = 3 * 10 * minute
     # time_points = window // delta
     base_filter_count = 32
-    fc_nodes = 128
     
     def __init__(self):
         
@@ -141,7 +140,7 @@ class ConvNetModel4(DualTrackModel):
 
         output_layer = y
         model = KerasModel(inputs=input_layer, outputs=output_layer)
-        opt = optimizers.Nadam(lr=0.0005, schedule_decay=0.01)
+        opt = optimizers.Nadam(lr=0.0005, schedule_decay=0.05)
         #opt = optimizers.Adam(lr=0.01, decay=0.5)
         model.compile(optimizer=opt, loss='binary_crossentropy', metrics=["accuracy"],
             sample_weight_mode="temporal")
