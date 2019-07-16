@@ -79,9 +79,9 @@ def hybrid_pool_layer_2(x):
 class ConvNetModel4(DualTrackModel):
     
     delta = 10 * minute
-    time_points = 60 
+    time_points = 73
     window = time_points * delta
-    time_point_delta = 4
+    time_point_delta = 8
 
     data_source_lbl='transshiping' 
     data_target_lbl='is_target_encounter'
@@ -106,30 +106,43 @@ class ConvNetModel4(DualTrackModel):
         y = Conv1D(depth, 5)(y)
         y = ELU()(y)
         y = keras.layers.BatchNormalization(scale=False, center=False)(y)
-        y = hybrid_pool_layer_2(y)
         
-        depth = 3 * depth // 2
-        y = Conv1D(depth, 5)(y)
+        y = Conv1D(depth, 5, dilation_rate=2)(y)
         y = ELU()(y)
         y = keras.layers.BatchNormalization(scale=False, center=False)(y)
-        y = Conv1D(depth, 5)(y)
-        y = ELU()(y)
-        y = keras.layers.BatchNormalization(scale=False, center=False)(y)
-        y = hybrid_pool_layer_2(y)
-        
-        depth = 3 * depth // 2
-        y = Conv1D(depth, 5)(y)
-        y = ELU()(y)
-        y = keras.layers.BatchNormalization(scale=False, center=False)(y)
-        y = Conv1D(depth, 5)(y)
+        y = Conv1D(depth, 5, dilation_rate=2)(y)
         y = ELU()(y)
         y = keras.layers.BatchNormalization(scale=False, center=False)(y)
         
+        y = Conv1D(depth, 5, dilation_rate=3)(y)
+        y = ELU()(y)
+        y = keras.layers.BatchNormalization(scale=False, center=False)(y)
+        y = Conv1D(depth, 5, dilation_rate=3)(y)
+        y = ELU()(y)
+        y = keras.layers.BatchNormalization(scale=False, center=False)(y)
+        
+        y = Conv1D(depth, 5, dilation_rate=2)(y)
+        y = ELU()(y)
+        y = keras.layers.BatchNormalization(scale=False, center=False)(y)
+        y = Conv1D(depth, 5, dilation_rate=2)(y)
+        y = ELU()(y)
+        y = keras.layers.BatchNormalization(scale=False, center=False)(y)
+        y = Conv1D(self.fc_nodes, 1)(y)
+        y = ELU()(y)
+
+        y = Conv1D(depth, 5, dilation_rate=1)(y)
+        y = ELU()(y)
+        y = keras.layers.BatchNormalization(scale=False, center=False)(y)
+        y = Conv1D(depth, 5, dilation_rate=1)(y)
+        y = ELU()(y)
+        y = keras.layers.BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(self.fc_nodes, 1)(y)
         y = ELU()(y)
 
         y = Conv1D(1, 1)(y)
         y = Activation('sigmoid')(y)
+
+        # (1 9) (9 25) (25 49) (49 65) (65 73)
 
         output_layer = y
         model = KerasModel(inputs=input_layer, outputs=output_layer)
@@ -155,25 +168,25 @@ class ConvNetModel4(DualTrackModel):
 
     def predict(self, x):
         x1 = self.preprocess(x)
-        return self.model.predict(x1)[:, 0] > 0.5
+        return self.model.predict(x1)[:, :, 0] > 0.5
     
-class ConvNetModel5(ConvNetModel4):
+# class ConvNetModel5(ConvNetModel4):
     
-    delta = 10 * minute
-    time_points = 71 
-    window = (time_points + 1) * delta
-    time_point_delta = 1
+#     delta = 10 * minute
+#     time_points = 71 
+#     window = (time_points + 1) * delta
+#     time_point_delta = 1
 
-    data_source_lbl='transshiping' 
-    data_target_lbl='is_target_encounter'
-    data_true_vals = [1]
-    data_false_vals = [2, 3]
-    data_far_time = 3 * 10 * minute
+#     data_source_lbl='transshiping' 
+#     data_target_lbl='is_target_encounter'
+#     data_true_vals = [1]
+#     data_false_vals = [2, 3]
+#     data_far_time = 3 * 10 * minute
 
-    def preprocess(self, x):
-        x = np.asarray(x) # 3 / 4
-        dxy = x[:, 1:, 3:5] - x[:, :-1, 3:5]
-        x = 0.5 * (x[:, 1:, :] + x[:, :-1, :])
-        x[:, :, 3:5] = dxy
-        return x
+#     def preprocess(self, x):
+#         x = np.asarray(x) # 3 / 4
+#         dxy = x[:, 1:, 3:5] - x[:, :-1, 3:5]
+#         x = 0.5 * (x[:, 1:, :] + x[:, :-1, :])
+#         x[:, :, 3:5] = dxy
+#         return x
 
