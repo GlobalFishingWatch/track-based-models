@@ -127,16 +127,11 @@ class ConvNetModel4(DualTrackModel):
         y = Conv1D(depth, 5, dilation_rate=2)(y)
         y = ELU()(y)
         y = keras.layers.BatchNormalization(scale=False, center=False)(y)
-        y = Conv1D(self.fc_nodes, 1)(y)
-        y = ELU()(y)
 
         y = Conv1D(depth, 5, dilation_rate=1)(y)
         y = ELU()(y)
         y = keras.layers.BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(depth, 5, dilation_rate=1)(y)
-        y = ELU()(y)
-        y = keras.layers.BatchNormalization(scale=False, center=False)(y)
-        y = Conv1D(self.fc_nodes, 1)(y)
         y = ELU()(y)
 
         y = Conv1D(1, 1)(y)
