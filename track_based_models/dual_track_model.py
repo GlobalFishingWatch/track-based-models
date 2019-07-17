@@ -154,7 +154,7 @@ class DualTrackModel(BaseModel):
             i0 = np.searchsorted(features.timestamp, t0, side='left')
             i1 = np.searchsorted(features.timestamp, t1, side='right')
             features = features.iloc[i0:i1]
-            print(t0, t1, i0, i1, len(timestamps), 
+            print(t0, t1, i0, i1, len(features.timestamps), 
                 features.timestamps.min(), features.timestamps.max())
             # Add obj data to features
             if extra_labels:
