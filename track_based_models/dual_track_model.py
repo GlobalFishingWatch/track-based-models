@@ -146,7 +146,7 @@ class DualTrackModel(BaseModel):
         if features is not None:
             # Filter features down to just the ssvid / time span we want
             ssvid = os.path.basename(path).split('_')[0]
-            mask = (features.ssvid == ssvid)
+            mask = (features['id' + suffix] == ssvid)
             features = features[mask]
             features = features.sort_values(by='timestamp')
             t0 = obj['timestamp'].iloc[0]
@@ -155,14 +155,18 @@ class DualTrackModel(BaseModel):
             i1 = np.searchsorted(features.timestamp, t1, side='right')
             features = features.iloc[i0:i1]
             # Add obj data to features
-            cls.add_obj_data(obj, features)
+            if extra_labels:
+                # TODO: clean up this logic. 
+                # Object data adds the true / false data which we only
+                # do for one of the branches.
+                cls.add_obj_data(obj, features)
             # Rename so we can use features as obj:
             cols = {
                 'timestamp' : features.timestamp,
-                'speed' + suffix : getattr(features, 'speed_knots' + suffix),
-                'course' + suffix : getattr(features, 'course_degrees' + suffix),
-                'lat' + suffix : getattr(features, 'lat' + suffix),
-                'lon' + suffix : getattr(features, 'lon' + suffix),
+                'speed' : getattr(features, 'speed_knots' + suffix),
+                'course' : getattr(features, 'course_degrees' + suffix),
+                'lat' : getattr(features, 'lat' + suffix),
+                'lon' : getattr(features, 'lon' + suffix),
                 }
             for lbl in extra_labels:
                 cols[lbl] = features[lbl]
@@ -175,8 +179,9 @@ class DualTrackModel(BaseModel):
     def load_paired_data(cls, path, delta, vessel_labels,
                         skip_label=False, keep_fracs=[1], features=None):
         obj_tv = cls.load_obj(path, vessel_label=vessel_labels[0], suffix='_1',
-                            extra_labels=[cls.data_source_lbl])  
-        obj_fv = cls.load_obj(path, vessel_label=vessel_labels[1], suffix='_2')
+                            features=features, extra_labels=[cls.data_source_lbl])  
+        obj_fv = cls.load_obj(path, vessel_label=vessel_labels[1], suffix='_2',
+                              features=features)
 
         for kf in keep_fracs:
             try:
@@ -200,9 +205,28 @@ class DualTrackModel(BaseModel):
 
     @classmethod
     def add_obj_data(cls, obj, features):
-        #TODO: implement me
-        #TODO: can this be factored out
-        raise NotImplementedError()
+        obj['is_defined'] = [(i in cls.data_defined_vals) for i in obj[cls.data_source_lbl]]
+        obj[cls.data_target_lbl] = [(i in cls.data_true_vals) for i in obj[cls.data_source_lbl]]
+        _, raw_label_i = lin_interp(obj, cls.data_target_lbl, t=features.timestamp, 
+                                    mask=None, # Don't mask labels - use undropped labels for training 
+                                    func=lambda x: np.array(x) == 1) # is it a set
+        features[cls.data_target_lbl] = raw_label_i > 0.5
+
+        _, raw_defined_i = lin_interp(obj, 'is_defined', t=features.timestamp, 
+                                      mask=None, # Don't mask labels - use undropped labels for training 
+                                      func=lambda x: np.array(x) == 1) # is it a set
+        features['is_defined'] = raw_defined_i > 0.5
+        source = []
+        for is_def, is_true in zip(features['is_defined'],
+                                   features[cls.data_target_lbl]):
+            if is_def:
+                if is_true:
+                    source.append(cls.data_true_vals[0])
+                else:
+                    source.append(cls.data_false_vals[0])
+            else:
+                source.append(cls.data_undefined_vals[0])
+        features[cls.data_source_lbl] = source
 
     @classmethod
     def generate_data(cls, paths, min_samples, seed=888, 
@@ -292,8 +316,8 @@ class DualTrackModel(BaseModel):
         f_dist = np.hypot(features_fv[:, 3] - features_tv[:, 3], features_fv[:, 4] - features_tv[:, 4])
         fv_isfar = features_fv[:, -1]
         
-        features = np.concatenate([features_tv[:, :], 
-                                   f_speed[:,None], f_dist[:, None], fv_isfar[:, None]], axis=1)
+        features = np.concatenate([features_tv[:, :], features_fv[:, :],
+                                   f_speed[:,None], f_dist[:, None]], axis=1)
         return t, features
 
 # 
