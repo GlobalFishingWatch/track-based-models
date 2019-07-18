@@ -1,4 +1,5 @@
 import datetime
+import json
 import numpy as np
 import os
 import pandas as pd
@@ -79,7 +80,7 @@ class DualTrackModel(BaseModel):
         dts = util.delta_times(xi, xp)
         y4 = dts
         # Times
-        t0 = obj['timestamp'][0]
+        t0 = obj['timestamp'].iloc[0]
         if interp_t is None:
             t = [(t0 + datetime.timedelta(seconds=cls.delta * i)) for i in range(len(y1))]
         else:
@@ -136,26 +137,26 @@ class DualTrackModel(BaseModel):
                           ]), angle, lat0, lon0
 
     @classmethod
-    def load_obj(cls, path, skip_label=False, keep_fracs=[1], features=None,
+    def load_obj(cls, path, ssvids, skip_label=False, keep_fracs=[1], features=None,
                          vessel_label=None, suffix='', extra_labels=()):
-        obj_tv = util.load_json_data(path, vessel_label=vessel_label)  
-        obj = util.convert_from_legacy_format(obj_tv)
+        base_obj = util.load_json_data(path, vessel_label=vessel_label)  
+        obj = util.convert_from_legacy_format(base_obj)
         for lbl in  extra_labels:   
-            obj[lbl] = obj_tv[lbl]
+            obj[lbl] = base_obj[lbl]
         # if features is None:
         if features is not None:
             # Filter features down to just the ssvid / time span we want
-            ssvid = os.path.basename(path).split('_')[0]
-            mask = (features['id' + suffix] == ssvid)
-            features = features[mask]
-            features = features.sort_values(by='timestamp')
+            ssvid = base_obj['mmsi']
             t0 = obj['timestamp'].iloc[0]
             t1 = obj['timestamp'].iloc[-1]
             i0 = np.searchsorted(features.timestamp, t0, side='left')
             i1 = np.searchsorted(features.timestamp, t1, side='right')
-            features = features.iloc[i0:i1]
-            print(t0, t1, i0, i1, len(features.timestamp), 
-                features.timestamp.min(), features.timestamp.max())
+            df = features[i0:i1]
+            #
+            mask = ((df.id_1 == ssvids[0]) & (df.id_2 == ssvids[1]) |
+                    (df.id_1 == ssvids[1]) & (df.id_2 == ssvids[0]))
+            features = df[mask]
+            features = features.copy()
             # Add obj data to features
             if extra_labels:
                 # TODO: clean up this logic. 
@@ -180,9 +181,12 @@ class DualTrackModel(BaseModel):
     @classmethod
     def load_paired_data(cls, path, delta, vessel_labels,
                         skip_label=False, keep_fracs=[1], features=None):
-        obj_tv = cls.load_obj(path, vessel_label=vessel_labels[0], suffix='_1',
+        with open(path) as f:
+            obj = json.loads(f.read())
+            ssvids = [obj[vl]['mmsi'] for vl in vessel_labels]
+        obj_tv = cls.load_obj(path, ssvids, vessel_label=vessel_labels[0], suffix='_1',
                             features=features, extra_labels=[cls.data_source_lbl])  
-        obj_fv = cls.load_obj(path, vessel_label=vessel_labels[1], suffix='_2',
+        obj_fv = cls.load_obj(path, ssvids, vessel_label=vessel_labels[1], suffix='_2',
                               features=features)
 
         for kf in keep_fracs:
@@ -190,7 +194,7 @@ class DualTrackModel(BaseModel):
                 t, x, y_tv, label, is_defined = cls.build_features(obj_tv,  
                                                 skip_label=skip_label, keep_frac=kf)
                 t_fv, x_fv, y_fv, _, _ = cls.build_features(obj_fv, interp_t = t, 
-                                                 skip_label=True, keep_frac=kf)
+                                                skip_label=True, keep_frac=kf)
                 assert np.all(t_fv == t)
         
                 t = np.asarray(t)

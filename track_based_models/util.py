@@ -177,8 +177,6 @@ def convert_from_features(features, obj=None):
         i0 = np.searchsorted(timestamps, t0, side='left')
         i1 = np.searchsorted(timestamps, t1, side='right')
         features = features.iloc[i0:i1]
-        print(t0,  t1, i0, i1, len(timestamps), 
-            timestamps.min(), timestamps.max())
         # Add fishing data to features
         add_obj_data(obj, features)
     # Rename so we can use featurs as obj:
