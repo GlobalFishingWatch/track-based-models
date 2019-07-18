@@ -87,8 +87,9 @@ class ConvNetModel4(DualTrackModel):
     data_target_lbl='is_target_encounter'
     data_true_vals = [1]
     data_false_vals = [2, 3]
-    data_defined_vals = (1, 2, 3)
-
+    data_defined_vals = [1, 2, 3]
+    data_undefined_vals = [0]
+    
     data_far_time = 3 * 10 * minute
     # time_points = window // delta
     base_filter_count = 32
