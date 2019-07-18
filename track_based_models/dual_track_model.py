@@ -197,7 +197,6 @@ class DualTrackModel(BaseModel):
 
                 yield (t, x, y_tv, x_fv, y_fv, label, is_defined)
             except:
-                raise
                 print('skipping', path, kf)
                 continue
 
