@@ -13,67 +13,12 @@ from keras import optimizers
 from keras import regularizers
 from keras.models import load_model
 
+from .base_model import hybrid_pool_layer_2, Normalizer
 from .dual_track_model import DualTrackModel
 from .util import minute, lin_interp, cos_deg, sin_deg 
 
 assert K.image_data_format() == 'channels_last'
 
-
-class Normalizer(object):
-    
-    def fit(self, features):
-        features = np.asarray(features)
-        self.mean = features.mean(axis=(0, 1), keepdims=True)
-        self.std = features.std(axis=(0, 1), keepdims=True)
-        return self
-        
-    def norm(self, features):
-        features = np.asarray(features)
-        return (features - self.mean) / self.std
-    
-    def save(self, path):
-        np.savez(path, mean=self.mean, std=self.std)
-        
-    @classmethod
-    def load(cls, path):
-        archive = np.load(path)
-        obj = cls()
-        obj.mean = archive['mean']
-        obj.std = archive['std']
-        return obj
-
-
-def hybrid_pool_layer(x, pool_size=2):
-    return Conv1D(int(x.shape[-1]), 1)(
-        keras.layers.concatenate([
-            MaxPooling1D(pool_size, strides=2)(x),
-            AveragePooling1D(pool_size, strides=2)(x)]))
-
-def hybrid_pool_layer_2(x):
-    depth = int(x.shape[-1])
-    x2 = Conv1D(depth, 3, strides=2)(x)
-    x2 = ELU()(x2)
-    x2 = keras.layers.BatchNormalization(scale=False, center=False)(x2)
-    return Conv1D(depth, 1)(keras.layers.concatenate([
-                                      MaxPooling1D(3, strides=2)(x), x2]))    
-    
-
-# class BaseModel(object):
-    
-#     def flatten(self, x):
-#         x = np.asarray(x)
-#         return x.reshape(x.shape[0], -1)
-    
-#     def save(self, path):
-#         self.model.save(os.path.join(path, 'model.h5'))
-#         self.normalizer.save(os.path.join(path, 'norm.npz'))
-        
-#     @classmethod
-#     def load(cls, path):
-#         mdl = cls()
-#         mdl.model = load_model(os.path.join(path, 'model.h5'))
-#         mdl.normalizer = Normalizer.load(os.path.join(path, 'norm.npz'))
-#         return mdl
 
 
 class ConvNetModel4(DualTrackModel):
@@ -89,7 +34,7 @@ class ConvNetModel4(DualTrackModel):
     data_false_vals = [2, 3]
     data_defined_vals = [1, 2, 3]
     data_undefined_vals = [0]
-    
+
     data_far_time = 3 * 10 * minute
     # time_points = window // delta
     base_filter_count = 32
