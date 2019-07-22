@@ -25,6 +25,7 @@ class ConvNetModel4(DualTrackModel):
     
     delta = 10 * minute
     time_points = 72
+    internal_time_points = 72
     window = time_points * delta
     time_point_delta = 1000000000000
 
@@ -50,7 +51,7 @@ class ConvNetModel4(DualTrackModel):
         input_layer = Input(shape=(None, 14))
         y = input_layer
          
-        input_layer = Input(shape=(self.time_points, 14))
+        input_layer = Input(shape=(self.internal_time_points, 14))
         y = input_layer
         y = Conv1D(depth, 6)(y)
         y = ELU()(y)
@@ -115,6 +116,7 @@ class ConvNetModel4(DualTrackModel):
     
 class ConvNetModel5(ConvNetModel4):
     
+    time_points = 73
     window = 73 * ConvNetModel4.delta
 
     def preprocess(self, x):
