@@ -214,7 +214,7 @@ def features_to_data(features, ssvid=None, t0=None, t1=None,
         timestamps = [dateutil.parser.parse(x) for x in data.timestamp] 
 
     columns = {'timestamp' : timestamps}
-    for k, v in mapping.items()
+    for k, v in mapping.items():
         columns[k] = features[v]
     return pd.DataFrame(columns)
 
