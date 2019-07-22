@@ -23,10 +23,16 @@ class DualTrackModel(BaseModel):
 
     data_far_time = None
 
-    #TODO: can this be refactored to BaseModel
     @classmethod
-    def create_features_and_times(cls, data, angle=77, max_deltas=0):
-        t, xi, y, label_i, defined_i = cls.build_features(data, skip_label=True)
+    def create_features_and_times(cls, data1, data2, angle=77, max_deltas=0):
+        #TODO: take two data items and create using recipe from 
+        # load paired / cook paired
+        t, x, y_tv, label, is_defined = cls.build_features(data1,  
+                                        skip_label=True)
+        t_fv, x_fv, y_fv, _, _ = cls.build_features(data2, interp_t = t, 
+                                        skip_label=True)
+        data = (t, x, y, x_fv, y_fv, label, dfnd)
+
         min_ndx = 0
         max_ndx = len(y) - cls.time_points
         features = []
@@ -35,7 +41,9 @@ class DualTrackModel(BaseModel):
         while i0 < max_ndx:
             i1 = min(i0 + cls.time_points + max_deltas * cls.time_point_delta, len(y))
             raw_features = y[i0:i1]
-            features.append(cls.cook_features(raw_features, angle=angle, noise=0)[0])
+            _, f_chunk = cls.cook_paired_data(*data, noise=0,
+                                    start_ndx=i0, end_ndx=i1)
+            features.append()
             i0 = i0 + max_deltas * cls.time_point_delta + 1
         times = t[cls.time_points//2:-cls.time_points//2]
         return features, times
@@ -201,7 +209,6 @@ class DualTrackModel(BaseModel):
 
                 yield (t, x, y_tv, x_fv, y_fv, label, is_defined)
             except:
-                raise
                 print('skipping', path, kf)
                 continue
 
@@ -327,4 +334,13 @@ class DualTrackModel(BaseModel):
         return t, features
 
 # 
+    #TODO: rename to not have set in it
+    def predict_from_data(self, data1, data2, max_deltas=0):
+        predictions = []
+        for angle in [77, 167, 180, 270]:
+            features, times = self.create_features_and_times(data1, data2, angle=angle,
+                                        max_deltas=max_deltas)
+            predictions_for_angle = np.concatenate(self.predict(features))
+            predictions.append(predictions_for_angle)
+        return times, np.mean(predictions, axis=0) > 0.5
 

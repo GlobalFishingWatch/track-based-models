@@ -189,7 +189,15 @@ def convert_from_features(features, obj=None):
         'fishing' : features.fishing,
         })
 
-def features_to_data(features, ssvid=None, t0=None, t1=None):
+default_feature_mapping = {
+    'speed' : 'speed_knots',
+    'course' : 'course_degrees',
+    'lat' : 'lat',
+    'lon' : 'lon',
+}
+
+def features_to_data(features, ssvid=None, t0=None, t1=None, 
+    mapping=default_feature_mapping):
     if ssvid is not None or t0 is not None or t1 is not None:
         mask = 1
         if ssvid is not None:
@@ -205,10 +213,8 @@ def features_to_data(features, ssvid=None, t0=None, t1=None):
     else:
         timestamps = [dateutil.parser.parse(x) for x in data.timestamp] 
 
-    return pd.DataFrame({
-        'timestamp' : timestamps,
-        'speed' : features.speed_knots,
-        'course' : features.course_degrees,
-        'lat' : features.lat,
-        'lon' : features.lon,
-        })
+    columns = {'timestamp' : timestamps}
+    for k, v in mapping.items()
+        columns[k] = features[v]
+    return pd.DataFrame(columns)
+
