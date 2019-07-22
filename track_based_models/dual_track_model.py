@@ -31,19 +31,20 @@ class DualTrackModel(BaseModel):
                                         skip_label=True)
         t_fv, x_fv, y_fv, _, _ = cls.build_features(data2, interp_t = t, 
                                         skip_label=True)
-        data = (t, x, y, x_fv, y_fv, label, dfnd)
+        data = (t, x, y_tv, x_fv, y_fv, label, is_defined)
 
         min_ndx = 0
-        max_ndx = len(y) - cls.time_points
+        max_ndx = len(y_tv) - cls.time_points
         features = []
         times = []
         i0 = 0
         while i0 < max_ndx:
-            i1 = min(i0 + cls.time_points + max_deltas * cls.time_point_delta, len(y))
-            raw_features = y[i0:i1]
+            i1 = min(i0 + cls.time_points + max_deltas * cls.time_point_delta, len(y_tv))
             _, f_chunk = cls.cook_paired_data(*data, noise=0,
                                     start_ndx=i0, end_ndx=i1)
-            features.append()
+
+            print(i0, i1, cls.time_points, f_chunk.shape)
+            features.append(f_chunk)
             i0 = i0 + max_deltas * cls.time_point_delta + 1
         times = t[cls.time_points//2:-cls.time_points//2]
         return features, times
@@ -313,9 +314,12 @@ class DualTrackModel(BaseModel):
     @classmethod
     def cook_paired_data(cls, t, x, y_tv, x_fv, y_fv, label, is_defined, start_ndx=0, end_ndx=None,
                         noise=None):
-        t, x, y_tv, x_fv, y_fv, label, is_defined = [v[start_ndx:end_ndx] for v in 
-                                                       (t, x, y_tv, x_fv, y_fv, label, is_defined)]
-            
+        t, x, y_tv, x_fv, y_fv= [v[start_ndx:end_ndx] for v in (t, x, y_tv, x_fv, y_fv)]
+        if label is not None:
+            label = label[start_ndx:end_ndx]
+        if is_defined is not None:
+            is_defined = is_defined[start_ndx:end_ndx]
+
         features_tv, angle, lat0, lon0 = cls.cook_features(y_tv, noise=noise)
         features_fv, _, _, _ = cls.cook_features(y_fv, angle=angle,
                                                     lat0=lat0, 
