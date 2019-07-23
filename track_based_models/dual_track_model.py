@@ -42,8 +42,6 @@ class DualTrackModel(BaseModel):
             i1 = min(i0 + cls.time_points + max_deltas * cls.time_point_delta, len(y_tv))
             _, f_chunk = cls.cook_paired_data(*data, noise=0,
                                     start_ndx=i0, end_ndx=i1)
-
-            print(i0, i1, cls.time_points, f_chunk.shape)
             features.append(f_chunk)
             i0 = i0 + max_deltas * cls.time_point_delta + 1
         times = t[cls.time_points//2:-cls.time_points//2]
@@ -344,7 +342,11 @@ class DualTrackModel(BaseModel):
         for angle in [77, 167, 180, 270]:
             features, times = self.create_features_and_times(data1, data2, angle=angle,
                                         max_deltas=max_deltas)
-            predictions_for_angle = np.concatenate(self.predict(features))
-            predictions.append(predictions_for_angle)
-        return times, np.mean(predictions, axis=0) > 0.5
+            if len(features) > 0:
+                predictions_for_angle = np.concatenate(self.predict(features))
+                predictions.append(predictions_for_angle)
+        if len(times) > 0:
+            return times, np.mean(predictions, axis=0) > 0.5
+        else:
+            return times, []
 
