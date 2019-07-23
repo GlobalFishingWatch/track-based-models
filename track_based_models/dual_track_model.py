@@ -42,8 +42,6 @@ class DualTrackModel(BaseModel):
             i1 = min(i0 + cls.time_points + max_deltas * cls.time_point_delta, len(y_tv))
             _, f_chunk = cls.cook_paired_data(*data, noise=0,
                                     start_ndx=i0, end_ndx=i1)
-
-            print(i0, i1, cls.time_points, f_chunk.shape)
             features.append(f_chunk)
             i0 = i0 + max_deltas * cls.time_point_delta + 1
         times = t[cls.time_points//2:-cls.time_points//2]
