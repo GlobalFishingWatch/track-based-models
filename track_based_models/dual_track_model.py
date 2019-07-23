@@ -342,7 +342,11 @@ class DualTrackModel(BaseModel):
         for angle in [77, 167, 180, 270]:
             features, times = self.create_features_and_times(data1, data2, angle=angle,
                                         max_deltas=max_deltas)
-            predictions_for_angle = np.concatenate(self.predict(features))
-            predictions.append(predictions_for_angle)
-        return times, np.mean(predictions, axis=0) > 0.5
+            if len(features) > 0:
+                predictions_for_angle = np.concatenate(self.predict(features))
+                predictions.append(predictions_for_angle)
+        if len(times) > 0:
+            return times, np.mean(predictions, axis=0) > 0.5
+        else:
+            return times, []
 
