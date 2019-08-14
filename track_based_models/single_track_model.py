@@ -143,7 +143,7 @@ class SingleTrackModel(BaseModel):
         # if features is None:
         if features is not None:
             # Filter features down to just the ssvid / time span we want
-            ssvid = os.path.basename(path).split('_')[0]
+            ssvid = obj_tv['mmsi']
             mask = (features.ssvid == ssvid)
             features = features[mask]
             features = features.sort_values(by='timestamp')
@@ -168,7 +168,7 @@ class SingleTrackModel(BaseModel):
                 t, x, y, label, is_defined = cls.build_features(obj, 
                                                 skip_label=skip_label, keep_frac=kf)
             except:
-                print('skipping', path, kf)
+                print('skipping', path, kf, 'due to unknown error')
                 continue
             t = np.asarray(t)
             yield (t, x, y, label, is_defined)
@@ -229,7 +229,7 @@ class SingleTrackModel(BaseModel):
                                     features=precomp_features, 
                                     vessel_label=vessel_label):
                 if data is None:
-                    print('skipping', p)
+                    print('skipping', p, 'because data is None')
                     continue
                 (t, x, y, label, dfnd) = data
                 
