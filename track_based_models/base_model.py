@@ -122,7 +122,7 @@ class BaseModel(object):
                 predictions_for_angle = np.concatenate(self.predict(features))
             except:
                 logging.debug('prediction failed: \n' +
-                              'np.shape(features): {}\n'.format(np.shape(features)) 
+                              'np.shape(features): {}\n'.format(np.shape(features)) +  
                               'np.shape(data): {}\n'.format(np.shape(data))
                               )
             predictions.append(predictions_for_angle)
