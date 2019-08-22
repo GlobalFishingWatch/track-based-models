@@ -1,5 +1,6 @@
 from __future__ import division
 from __future__ import print_function
+import logging
 import numpy as np
 import h5py
 import os
@@ -117,7 +118,13 @@ class BaseModel(object):
         for angle in [77, 167, 180, 270]:
             features, times = self.create_features_and_times(data, angle=angle,
                                         max_deltas=max_deltas)
-            predictions_for_angle = np.concatenate(self.predict(features))
+            try:
+                predictions_for_angle = np.concatenate(self.predict(features))
+            except:
+                logging.debug('prediction failed: \n' +
+                              'np.shape(features): {}\n'.format(np.shape(features)) 
+                              'np.shape(data): {}\n'.format(np.shape(data))
+                              )
             predictions.append(predictions_for_angle)
         return times, np.mean(predictions, axis=0) > 0.5
 
