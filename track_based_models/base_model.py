@@ -120,12 +120,13 @@ class BaseModel(object):
                                         max_deltas=max_deltas)
             try:
                 predictions_for_angle = np.concatenate(self.predict(features))
+                predictions.append(predictions_for_angle)
             except:
                 logging.debug('prediction failed: \n' +
                               'np.shape(features): {}\n'.format(np.shape(features)) +  
                               'np.shape(data): {}\n'.format(np.shape(data))
                               )
-            predictions.append(predictions_for_angle)
+                raise
         return times, np.mean(predictions, axis=0) > 0.5
 
     def augment_data_with_predictions(self, data):
