@@ -39,9 +39,10 @@ def load_json_data(path, vessel_label):
         obj = obj[vessel_label]
     obj['raw_timestamps'] = obj['timestamps']
     obj['timestamps'] = obj['timestamp'] = [dateutil.parser.parse(x) for x in obj['timestamps']]
-    mask = np.ones_like(obj['timestamp'])
+    mask = np.ones_like(obj['timestamp'], dtype=bool)
     for field in ['sogs', 'courses']:
-        mask &= [(x is not None) for x in obj[field]]
+#	print(mask.dtype,  np.array([(x is not None) for x in obj[field]]).dtype)
+        mask &= np.array([(x is not None) for x in obj[field]], dtype=bool)
     for field in ['timestamp', 'lats', 'lons', 'sogs', 'courses']:
         obj[field] = [x for (i, x) in enumerate(obj[field]) if mask[i]]
     return obj

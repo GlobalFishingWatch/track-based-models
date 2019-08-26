@@ -39,6 +39,8 @@ class SingleTrackModel(BaseModel):
     def build_features(cls, obj, skip_label=False, keep_frac=1.0):
         delta = cls.delta
         n_pts = len(obj['lat'])
+        if n_pts == 0:
+            return [], [], [], [], []
         assert 0 < keep_frac <= 1, 'keep frac must be between 0 and 1'
         if keep_frac == 1:
             mask = None
@@ -139,11 +141,12 @@ class SingleTrackModel(BaseModel):
                          vessel_label=None):
         obj_tv = util.load_json_data(path, vessel_label=vessel_label)  
         obj = util.convert_from_legacy_format(obj_tv)
-        obj[cls.data_source_lbl] = obj_tv[cls.data_source_lbl]
+        mask = ~np.isnan(np.array(obj_tv['sogs'])) & ~np.isnan(np.array(obj_tv['courses']))
+        obj[cls.data_source_lbl] = np.asarray(obj_tv[cls.data_source_lbl])[mask]
         # if features is None:
         if features is not None:
             # Filter features down to just the ssvid / time span we want
-            ssvid = os.path.basename(path).split('_')[0]
+            ssvid = obj_tv['mmsi']
             mask = (features.ssvid == ssvid)
             features = features[mask]
             features = features.sort_values(by='timestamp')
@@ -168,7 +171,8 @@ class SingleTrackModel(BaseModel):
                 t, x, y, label, is_defined = cls.build_features(obj, 
                                                 skip_label=skip_label, keep_frac=kf)
             except:
-                print('skipping', path, kf)
+                raise
+                print('skipping', path, kf, 'due to unknown error')
                 continue
             t = np.asarray(t)
             yield (t, x, y, label, is_defined)
@@ -229,7 +233,7 @@ class SingleTrackModel(BaseModel):
                                     features=precomp_features, 
                                     vessel_label=vessel_label):
                 if data is None:
-                    print('skipping', p)
+                    print('skipping', p, 'because data is None')
                     continue
                 (t, x, y, label, dfnd) = data
                 
