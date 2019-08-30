@@ -1935,13 +1935,13 @@ class LoiteringModelV12(SingleTrackModel):
         # Above is 1->5->11->15->31->35
         # Below is 4 * k - 3, where k is center size
 
-        depth /= 2
+        depth //= 2
         y = keras.layers.UpSampling1D(size=2)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
 
-        depth *= 2
+        depth //= 2
         y = keras.layers.UpSampling1D(size=2)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
