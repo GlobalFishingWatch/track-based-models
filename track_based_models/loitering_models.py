@@ -1915,7 +1915,7 @@ class LoiteringModelV12(SingleTrackModel):
         y = BatchNormalization(scale=False, center=False)(y)
         y = MaxPooling1D(3, strides=2)(y)
 
-        depths *= 2
+        depth *= 2
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
@@ -1924,7 +1924,7 @@ class LoiteringModelV12(SingleTrackModel):
         y = BatchNormalization(scale=False, center=False)(y)
         y = MaxPooling1D(3, strides=2)(y)
 
-        depths *= 2
+        depth *= 2
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
@@ -1935,13 +1935,13 @@ class LoiteringModelV12(SingleTrackModel):
         # Above is 1->5->11->15->31->35
         # Below is 4 * k - 3, where k is center size
 
-        depths /= 2
+        depth /= 2
         y = keras.layers.UpSampling1D(size=2)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
 
-        depths *= 2
+        depth *= 2
         y = keras.layers.UpSampling1D(size=2)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
