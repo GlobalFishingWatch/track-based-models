@@ -1885,7 +1885,7 @@ class LoiteringModelV11(SingleTrackModel):
 class LoiteringModelV12(SingleTrackModel):
     
     delta = 10 * minute
-    time_points = 35 # 72 = 12 hours, 120 = 20 hours, should be odd
+    time_points = 55 # 72 = 12 hours, 120 = 20 hours, should be odd
     time_point_delta = 4
     window = time_points * delta
 
@@ -1913,7 +1913,7 @@ class LoiteringModelV12(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        y = MaxPooling1D(3, strides=2)(y)
+        y = MaxPooling1D(5, strides=4)(y)
 
         depth *= 2
         y = Conv1D(depth, 3)(y)
@@ -1922,7 +1922,7 @@ class LoiteringModelV12(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        y = MaxPooling1D(3, strides=2)(y)
+        y = MaxPooling1D(5, strides=4)(y)
 
         depth *= 2
         y = Conv1D(depth, 3)(y)
@@ -1932,22 +1932,20 @@ class LoiteringModelV12(SingleTrackModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
 
-        # Above is 1->5->11->15->31->35
+        # Above is 1->5->21->25->51->55
         # Below is 4 * k - 3, where k is center size
 
         depth //= 2
-        y = keras.layers.UpSampling1D(size=2)(y)
+        y = keras.layers.UpSampling1D(size=4)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
 
         depth //= 2
-        y = keras.layers.UpSampling1D(size=2)(y)
+        y = keras.layers.UpSampling1D(size=4)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-
-        # (1 - 5) (5 13) (13 17) 
 
         y = Conv1D(1, 1)(y)
         y = Activation('sigmoid')(y)
