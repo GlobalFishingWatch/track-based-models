@@ -1885,7 +1885,7 @@ class LoiteringModelV11(SingleTrackModel):
 class LoiteringModelV12(SingleTrackModel):
     
     delta = 10 * minute
-    time_points = 55 # 72 = 12 hours, 120 = 20 hours, should be odd
+    time_points = 105 # 72 = 12 hours, 120 = 20 hours, should be odd
     time_point_delta = 4
     window = time_points * delta
 
@@ -1932,7 +1932,7 @@ class LoiteringModelV12(SingleTrackModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
 
-        # Above is 1->5->21->25->51->55
+        # Above is 1->5->21->25->101->105
         # Below is 4 * k - 3, where k is center size
 
         depth //= 2
