@@ -1994,7 +1994,7 @@ class LoiteringModelV13(SingleTrackModel):
     time_point_delta = 4
     window = time_points * delta
 
-    base_filter_count = 32
+    base_filter_count = 16
 
     data_source_lbl='transshiping' 
     data_target_lbl='is_target_encounter'
@@ -2015,57 +2015,63 @@ class LoiteringModelV13(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        y0 = Dropout(0.3)(y)
+        y0 = y = Dropout(0.1)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
         y = MaxPooling1D(5, strides=4)(y)
-        y1 = y = Dropout(0.4)(y)
+        y1 = y = Dropout(0.2)(y)
 
         depth *= 2
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
+        y = Dropout(0.2)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
         y = MaxPooling1D(5, strides=4)(y)
-        y = Dropout(0.5)(y)
+        y = Dropout(0.3)(y)
 
         depth *= 2
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
+        y = Dropout(0.3)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        y = Dropout(0.5)(y)
+        y = Dropout(0.3)(y)
 
         # Above is 1->5->21->25->101->105
         # Below is 4 * k - 3, where k is center size
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=4)(y)
+        y = Dropout(0.2)(y)
         y = Concatenate()([y, 
                             keras.layers.Cropping1D((10,11))(y1)])
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
+        y = Dropout(0.2)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=4)(y)
+        y = Dropout(0.1)(y)
         y = keras.layers.Concatenate()([y, 
                             Cropping1D((49,50))(y0)]) # TODO make symmetric
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
+        y = Dropout(0.1)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-
+        y = Dropout(0.1)(y)
         y = Conv1D(1, 1)(y)
         y = Activation('sigmoid')(y)
 
