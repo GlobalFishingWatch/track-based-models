@@ -1937,12 +1937,18 @@ class LoiteringModelV12(SingleTrackModel):
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=4)(y)
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=4)(y)
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
