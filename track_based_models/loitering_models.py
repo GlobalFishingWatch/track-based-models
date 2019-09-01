@@ -1910,12 +1910,12 @@ class LoiteringModelV12(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        y0 = y = Dropout(0.1)(y)
+        y0 = y #= Dropout(0.1)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
         y = MaxPooling1D(5, strides=4)(y)
-        y1 = y = Dropout(0.2)(y)
+        y1 = y = Dropout(0.1)(y)
 
         depth *= 2
         y = Conv1D(depth, 3)(y)
@@ -1925,7 +1925,7 @@ class LoiteringModelV12(SingleTrackModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
         y = MaxPooling1D(5, strides=4)(y)
-        y = Dropout(0.3)(y)
+        y = Dropout(0.2)(y)
 
         depth *= 2
         y = Conv1D(depth, 3)(y)
@@ -1934,7 +1934,6 @@ class LoiteringModelV12(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        y = Dropout(0.3)(y)
 
         # Above is 1->5->21->25->101->105
         # Below is 4 * k - 3, where k is center size
@@ -1965,7 +1964,7 @@ class LoiteringModelV12(SingleTrackModel):
         y = Activation('sigmoid')(y)
 
         model = KerasModel(inputs=input_layer, outputs=y)
-        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.05)
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.1)
         # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
         #                                 decay=0.5, nesterov=True)
 
