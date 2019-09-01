@@ -1986,3 +1986,109 @@ class LoiteringModelV12(SingleTrackModel):
                       validation_split=validation_split, 
                       validation_data=validation_data,
                       verbose=verbose, callbacks=callbacks)
+
+class LoiteringModelV13(SingleTrackModel):
+    
+    delta = 10 * minute
+    time_points = 105 # 72 = 12 hours, 120 = 20 hours, should be odd
+    time_point_delta = 4
+    window = time_points * delta
+
+    base_filter_count = 32
+
+    data_source_lbl='transshiping' 
+    data_target_lbl='is_target_encounter'
+    data_undefined_vals = (0, 3)
+    data_defined_vals = (1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (2,)
+    data_far_time = 3 * 10 * minute
+    
+    def __init__(self):
+        
+        self.normalizer = None
+        
+        d1 = depth = self.base_filter_count
+        
+        input_layer = Input(shape=(None, 6))
+        y = input_layer
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y0 = Dropout(0.3)(y)
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = MaxPooling1D(5, strides=4)(y)
+        y1 = y = Dropout(0.4)(y)
+
+        depth *= 2
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = MaxPooling1D(5, strides=4)(y)
+        y = Dropout(0.5)(y)
+
+        depth *= 2
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = Dropout(0.5)(y)
+
+        # Above is 1->5->21->25->101->105
+        # Below is 4 * k - 3, where k is center size
+
+        depth //= 2
+        y = keras.layers.UpSampling1D(size=4)(y)
+        y = Concatenate()([y, 
+                            keras.layers.Cropping1D((10,11))(y1)])
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = Conv1D(depth, 2)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+
+        depth //= 2
+        y = keras.layers.UpSampling1D(size=4)(y)
+        y = keras.layers.Concatenate()([y, 
+                            Cropping1D((49,50))(y0)]) # TODO make symmetric
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+        y = Conv1D(depth, 2)(y)
+        y = ReLU()(y)
+        y = BatchNormalization(scale=False, center=False)(y)
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.1)
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1, callbacks=[]):
+        self.normalizer = Normalizer().fit(x)
+        x1 = self.preprocess(x)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data,
+                      verbose=verbose, callbacks=callbacks)
+
