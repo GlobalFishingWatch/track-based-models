@@ -1910,12 +1910,12 @@ class LoiteringModelV12(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        y0 = y #= Dropout(0.1)(y)
+        y0 = y = Dropout(0.2)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
         y = MaxPooling1D(5, strides=4)(y)
-        y1 = y = Dropout(0.1)(y)
+        y1 = y = Dropout(0.3)(y)
 
         depth *= 2
         y = Conv1D(depth, 3)(y)
@@ -1925,7 +1925,7 @@ class LoiteringModelV12(SingleTrackModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
         y = MaxPooling1D(5, strides=4)(y)
-        y = Dropout(0.2)(y)
+        y = Dropout(0.4)(y)
 
         depth *= 2
         y = Conv1D(depth, 3)(y)
@@ -1934,6 +1934,7 @@ class LoiteringModelV12(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
+        y = Dropout(0.4)(y)
 
         # Above is 1->5->21->25->101->105
         # Below is 4 * k - 3, where k is center size
