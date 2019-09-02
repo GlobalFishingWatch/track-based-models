@@ -240,7 +240,7 @@ class SingleTrackModel(BaseModel):
                 max_ndx = len(x) - window_pts
                 ndxs = []
                 for ndx in range(min_ndx, max_ndx + 1):
-                    if dfnd[ndx:ndx+window_pts].sum() >= window_pts // 2:
+                    if dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].sum() >= lbl_pts / 2.0:
                         ndxs.append(ndx)
                 if not ndxs:
                     print("skipping", p, "because it is too short")
