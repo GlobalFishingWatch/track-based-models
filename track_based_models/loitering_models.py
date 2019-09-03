@@ -2108,7 +2108,7 @@ class LoiteringModelV14(SingleTrackModel):
     time_point_delta = 4
     window = time_points * delta
 
-    base_filter_count = 32
+    base_filter_count = 64
 
     data_source_lbl='transshiping' 
     data_target_lbl='is_target_encounter'
@@ -2195,7 +2195,7 @@ class LoiteringModelV14(SingleTrackModel):
 
         model = KerasModel(inputs=input_layer, outputs=y)
         # Tried scheduled decay of 0.2 and it didn't fit as deeply.
-        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.15)
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.1)
         # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
         #                                 decay=0.5, nesterov=True)
 
