@@ -2108,7 +2108,7 @@ class LoiteringModelV14(SingleTrackModel):
     time_point_delta = 4
     window = time_points * delta
 
-    base_filter_count = 64
+    base_filter_count = 32
 
     data_source_lbl='transshiping' 
     data_target_lbl='is_target_encounter'
@@ -2128,8 +2128,6 @@ class LoiteringModelV14(SingleTrackModel):
         y = input_layer
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        # I tried higher momentum, but it seemed to cause problems. It's possible it'd
-        # work if we decayed the learning rate a lot more.
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y0 = y = Dropout(0.1)(y)
         y = Conv1D(depth, 4)(y)
@@ -2157,6 +2155,7 @@ class LoiteringModelV14(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = Dropout(0.5)(y)
 
         # Above is 1->6->19->(21)->25->76->(79)->81
         # Below is 4 * k - 3, where k is center size
@@ -2194,7 +2193,6 @@ class LoiteringModelV14(SingleTrackModel):
         y = Activation('sigmoid')(y)
 
         model = KerasModel(inputs=input_layer, outputs=y)
-        # Tried scheduled decay of 0.2 and it didn't fit as deeply.
         opt = optimizers.Nadam(lr=0.002, schedule_decay=0.1)
         # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
         #                                 decay=0.5, nesterov=True)
