@@ -2193,7 +2193,7 @@ class LoiteringModelV14(SingleTrackModel):
         y = Activation('sigmoid')(y)
 
         model = KerasModel(inputs=input_layer, outputs=y)
-        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.2)
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.1)
         # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
         #                                 decay=0.5, nesterov=True)
 
