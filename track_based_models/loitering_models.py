@@ -2167,7 +2167,7 @@ class LoiteringModelV14(SingleTrackModel):
         y = keras.layers.UpSampling1D(size=3)(y)
         y = Dropout(0.3)(y)
         y = Concatenate()([y, 
-                            keras.layers.Cropping1D((10,10))(y1)])
+                            keras.layers.Cropping1D((9,9))(y1)])
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
