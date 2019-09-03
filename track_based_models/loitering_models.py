@@ -2128,6 +2128,8 @@ class LoiteringModelV14(SingleTrackModel):
         y = input_layer
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
+        # I tried higher momentum, but it seemed to cause problems. It's possible it'd
+        # work if we decayed the learning rate a lot more.
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y0 = y = Dropout(0.1)(y)
         y = Conv1D(depth, 4)(y)
@@ -2192,7 +2194,8 @@ class LoiteringModelV14(SingleTrackModel):
         y = Activation('sigmoid')(y)
 
         model = KerasModel(inputs=input_layer, outputs=y)
-        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.1)
+        # Tried scheduled decay of 0.2 and it didn't fit as deeply.
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.15)
         # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
         #                                 decay=0.5, nesterov=True)
 
