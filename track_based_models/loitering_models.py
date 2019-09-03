@@ -2134,24 +2134,24 @@ class LoiteringModelV14(SingleTrackModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
         y = MaxPooling1D(4, strides=3)(y)
-        y = Dropout(0.2)(y)
+        y = Dropout(0.3)(y)
 
         depth *= 2
         y = Conv1D(depth, 5)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
-        y1 = y = Dropout(0.2)(y)
+        y1 = y = Dropout(0.3)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
         y = MaxPooling1D(4, strides=3)(y)
-        y = Dropout(0.3)(y)
+        y = Dropout(0.5)(y)
 
         depth *= 2
         y = Conv1D(depth, 4)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
-        y = Dropout(0.3)(y)
+        y = Dropout(0.5)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
@@ -2164,13 +2164,13 @@ class LoiteringModelV14(SingleTrackModel):
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=3)(y)
-        y = Dropout(0.2)(y)
+        y = Dropout(0.3)(y)
         y = Concatenate()([y, 
                             keras.layers.Cropping1D((9,9))(y1)])
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
-        y = Dropout(0.2)(y)
+        y = Dropout(0.3)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
