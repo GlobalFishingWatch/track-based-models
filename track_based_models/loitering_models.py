@@ -2164,11 +2164,11 @@ class LoiteringModelV14(SingleTrackModel):
 
 
         depth //= 2
-        y = keras.layers.UpSampling1D(size=4)(y)
+        y = keras.layers.UpSampling1D(size=3)(y)
         y = Dropout(0.3)(y)
         y = Concatenate()([y, 
                             keras.layers.Cropping1D((9,9))(y1)])
-        y = Conv1D(depth, 3)(y)
+        y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
         y = Dropout(0.3)(y)
@@ -2177,11 +2177,11 @@ class LoiteringModelV14(SingleTrackModel):
         y = BatchNormalization(scale=False, center=False)(y)
 
         depth //= 2
-        y = keras.layers.UpSampling1D(size=4)(y)
+        y = keras.layers.UpSampling1D(size=3)(y)
         y = Dropout(0.1)(y)
         y = keras.layers.Concatenate()([y, 
                             Cropping1D((39,39))(y0)]) # TODO make symmetric
-        y = Conv1D(depth, 3)(y)
+        y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
         y = Dropout(0.1)(y)
