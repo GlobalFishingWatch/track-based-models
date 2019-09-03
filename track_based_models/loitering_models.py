@@ -2128,34 +2128,34 @@ class LoiteringModelV14(SingleTrackModel):
         y = input_layer
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
-        y0 = y = Dropout(0.1)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
+        y0 = y = Dropout(0.0)(y)
         y = Conv1D(depth, 4)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
         y = MaxPooling1D(4, strides=3)(y)
-        y = Dropout(0.3)(y)
+        y = Dropout(0.1)(y)
 
         depth *= 2
         y = Conv1D(depth, 5)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
-        y1 = y = Dropout(0.3)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
+        y1 = y = Dropout(0.1)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
         y = MaxPooling1D(4, strides=3)(y)
-        y = Dropout(0.5)(y)
+        y = Dropout(0.2)(y)
 
         depth *= 2
         y = Conv1D(depth, 4)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
-        y = Dropout(0.5)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
+        y = Dropout(0.2)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
-        y = Dropout(0.5)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
+        y = Dropout(0.2)(y)
 
         # Above is 1->6->19->(21)->25->76->(79)->81
         # Below is 4 * k - 3, where k is center size
@@ -2165,30 +2165,30 @@ class LoiteringModelV14(SingleTrackModel):
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=3)(y)
-        y = Dropout(0.3)(y)
+        y = Dropout(0.1)(y)
         y = Concatenate()([y, 
                             keras.layers.Cropping1D((9,9))(y1)])
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
-        y = Dropout(0.3)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
+        y = Dropout(0.1)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=3)(y)
-        y = Dropout(0.1)(y)
+        y = Dropout(0.0)(y)
         y = keras.layers.Concatenate()([y, 
                             Cropping1D((38,38))(y0)]) # TODO make symmetric
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
-        y = Dropout(0.1)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
+        y = Dropout(0.0)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
-        y = Dropout(0.1)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.997)(y)
+        y = Dropout(0.0)(y)
         y = Conv1D(1, 1)(y)
         y = Activation('sigmoid')(y)
 
