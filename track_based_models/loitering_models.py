@@ -2128,33 +2128,33 @@ class LoiteringModelV14(SingleTrackModel):
         y = input_layer
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
         y0 = y = Dropout(0.1)(y)
         y = Conv1D(depth, 4)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
         y = MaxPooling1D(4, strides=3)(y)
         y = Dropout(0.3)(y)
 
         depth *= 2
         y = Conv1D(depth, 5)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
         y1 = y = Dropout(0.3)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
         y = MaxPooling1D(4, strides=3)(y)
         y = Dropout(0.5)(y)
 
         depth *= 2
         y = Conv1D(depth, 4)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
         y = Dropout(0.5)(y)
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
         y = Dropout(0.5)(y)
 
         # Above is 1->6->19->(21)->25->76->(79)->81
@@ -2170,11 +2170,11 @@ class LoiteringModelV14(SingleTrackModel):
                             keras.layers.Cropping1D((9,9))(y1)])
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
         y = Dropout(0.3)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=3)(y)
@@ -2183,17 +2183,17 @@ class LoiteringModelV14(SingleTrackModel):
                             Cropping1D((38,38))(y0)]) # TODO make symmetric
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
         y = Dropout(0.1)(y)
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
-        y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
+        y = BatchNormalization(scale=False, center=False, momentum=0.999)(y)
         y = Dropout(0.1)(y)
         y = Conv1D(1, 1)(y)
         y = Activation('sigmoid')(y)
 
         model = KerasModel(inputs=input_layer, outputs=y)
-        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.1)
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.2)
         # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
         #                                 decay=0.5, nesterov=True)
 
