@@ -2133,7 +2133,7 @@ class LoiteringModelV14(SingleTrackModel):
         y = Conv1D(depth, 4)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        y = MaxPooling1D(5, strides=3)(y)
+        y = MaxPooling1D(4, strides=3)(y)
         y1 = y = Dropout(0.3)(y)
 
         depth *= 2
@@ -2144,7 +2144,7 @@ class LoiteringModelV14(SingleTrackModel):
         y = Conv1D(depth, 3)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False)(y)
-        y = MaxPooling1D(5, strides=3)(y)
+        y = MaxPooling1D(4, strides=3)(y)
         y = Dropout(0.5)(y)
 
         depth *= 2
