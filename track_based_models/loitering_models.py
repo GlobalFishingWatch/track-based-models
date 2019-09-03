@@ -2104,7 +2104,7 @@ class LoiteringModelV13(SingleTrackModel):
 class LoiteringModelV14(SingleTrackModel):
     
     delta = 10 * minute
-    time_points = 125 # 72 = 12 hours, 120 = 20 hours, should be odd
+    time_points = 81 # 72 = 12 hours, 120 = 20 hours, should be odd
     time_point_delta = 4
     window = time_points * delta
 
