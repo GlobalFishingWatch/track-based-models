@@ -2201,6 +2201,10 @@ class LoiteringModelV14(SingleTrackModel):
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
 
+    def preprocess(self, x):
+        x = np.asarray(x) 
+        return self.normalizer.norm(x)
+
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
             validation_split=0, validation_data=0, verbose=1, callbacks=[]):
         self.normalizer = Normalizer().fit(x)
