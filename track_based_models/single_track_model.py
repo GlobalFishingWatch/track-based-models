@@ -78,10 +78,12 @@ class SingleTrackModel(BaseModel):
         y4 = dts
         if 'min_dt_min' in obj:
             dts += lin_interp(obj, 'min_dt_min', mask=None) * 60
+        # depths
+        _, y5 = lin_interp(obj, 'depth', delta=delta, mask=mask)
         # Times
         t0 = obj['timestamp'].iloc[0]
         t = [(t0 + datetime.timedelta(seconds=delta * i)) for i in range(len(y1))]
-        y = np.transpose([y0, y1, y2, y3, y4])
+        y = np.transpose([y0, y1, y2, y3, y4, y5])
         #
         # Quick and dirty nearest neighbor (only works for binary labels I think)
         if skip_label:
@@ -120,6 +122,7 @@ class SingleTrackModel(BaseModel):
         d2 = (lon - lon0) * scale
         dir_a = np.cos(angle) * d2 - np.sin(angle) * d1
         dir_b = np.cos(angle) * d1 + np.sin(angle) * d2
+        depth = raw_features[:, 5]
 
         if noise is None:
             noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
@@ -132,7 +135,8 @@ class SingleTrackModel(BaseModel):
                              np.sin(angle_feat),
                              dir_a,
                              dir_b,
-                             is_far
+                             is_far,
+                             depth
                              ]), angle
 
     # TODO: vessel_label can be class attribute
@@ -164,6 +168,7 @@ class SingleTrackModel(BaseModel):
                 'course' : features.course_degrees,
                 'lat' : features.lat,
                 'lon' : features.lon,
+                'depth' : -features.elevation_m
                 cls.data_source_lbl : features[cls.data_source_lbl],
                 })
         for kf in keep_fracs:
