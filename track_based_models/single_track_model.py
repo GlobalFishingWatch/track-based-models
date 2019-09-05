@@ -168,7 +168,7 @@ class SingleTrackModel(BaseModel):
                 'course' : features.course_degrees,
                 'lat' : features.lat,
                 'lon' : features.lon,
-                'depth' : -features.elevation_m
+                'depth' : -features.elevation_m,
                 cls.data_source_lbl : features[cls.data_source_lbl],
                 })
         for kf in keep_fracs:
