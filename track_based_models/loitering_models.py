@@ -2244,7 +2244,7 @@ class LoiteringModelV15(SingleTrackModel):
         
         d1 = depth = self.base_filter_count
         
-        input_layer = Input(shape=(None, 6))
+        input_layer = Input(shape=(None, 7))
         y = input_layer
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
