@@ -217,7 +217,7 @@ def features_to_data(features, ssvid=None, t0=None, t1=None,
 
     columns = {'timestamp' : timestamps}
     for k, v in mapping.items():
-        if isintance(v, str):
+        if isinstance(v, str):
             columns[k] = features[v]
         else:
             columns[k] = v(features)
