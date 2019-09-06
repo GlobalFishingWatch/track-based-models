@@ -195,6 +195,7 @@ default_feature_mapping = {
     'course' : 'course_degrees',
     'lat' : 'lat',
     'lon' : 'lon',
+    'depth' : lambda x : -x['elevation_m']
 }
 
 def features_to_data(features, ssvid=None, t0=None, t1=None, 
@@ -216,6 +217,9 @@ def features_to_data(features, ssvid=None, t0=None, t1=None,
 
     columns = {'timestamp' : timestamps}
     for k, v in mapping.items():
-        columns[k] = features[v]
+        if isintance(v, str):
+            columns[k] = features[v]
+        else:
+            columns[k] = v(features)
     return pd.DataFrame(columns)
 
