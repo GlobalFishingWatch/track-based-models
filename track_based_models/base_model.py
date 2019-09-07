@@ -16,6 +16,7 @@ from .util import minute, hour, add_predictions
 
 assert K.image_data_format() == 'channels_last'
 
+EPSILON = 1e-10
 
 class Normalizer(object):
     
@@ -27,7 +28,7 @@ class Normalizer(object):
         
     def norm(self, features):
         features = np.asarray(features)
-        return (features - self.mean) / self.std
+        return (features - self.mean) / (self.std + EPSILON)
     
     def save(self, path, mode='w'):
         with h5py.File(path, mode) as f:

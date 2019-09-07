@@ -195,11 +195,14 @@ default_feature_mapping = {
     'course' : 'course_degrees',
     'lat' : 'lat',
     'lon' : 'lon',
-    'depth' : lambda x : -x['elevation_m']
+    'depth' : lambda x: -np.sign(x.elevation_m.values) * 
+                np.log(1 + np.abs(x.elevation_m.values)),
+    'distance' : 'distance_from_shore_km'
 }
 
 def features_to_data(features, ssvid=None, t0=None, t1=None, 
     mapping=default_feature_mapping):
+    print('running features_to_data')
     if ssvid is not None or t0 is not None or t1 is not None:
         mask = 1
         if ssvid is not None:
@@ -217,6 +220,7 @@ def features_to_data(features, ssvid=None, t0=None, t1=None,
 
     columns = {'timestamp' : timestamps}
     for k, v in mapping.items():
+        print('mapping', k, v)
         if isinstance(v, str):
             columns[k] = features[v]
         else:

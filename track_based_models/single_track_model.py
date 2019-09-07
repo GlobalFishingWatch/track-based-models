@@ -80,10 +80,12 @@ class SingleTrackModel(BaseModel):
             dts += lin_interp(obj, 'min_dt_min', mask=None) * 60
         # depths
         _, y5 = lin_interp(obj, 'depth', delta=delta, mask=mask)
+        # Distance from shore
+        _, y6 = lin_interp(obj, 'distance', delta=delta, mask=mask)
         # Times
         t0 = obj['timestamp'].iloc[0]
         t = [(t0 + datetime.timedelta(seconds=delta * i)) for i in range(len(y1))]
-        y = np.transpose([y0, y1, y2, y3, y4, y5])
+        y = np.transpose([y0, y1, y2, y3, y4, y5, y6])
         #
         # Quick and dirty nearest neighbor (only works for binary labels I think)
         if skip_label:
@@ -123,6 +125,7 @@ class SingleTrackModel(BaseModel):
         dir_a = np.cos(angle) * d2 - np.sin(angle) * d1
         dir_b = np.cos(angle) * d1 + np.sin(angle) * d2
         depth = raw_features[:, 5]
+        distance = raw_features[:, 6]
 
         if noise is None:
             noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
@@ -131,12 +134,12 @@ class SingleTrackModel(BaseModel):
         is_far = np.exp(-noisy_time) 
         dir_h = np.hypot(dir_a, dir_b)
         return np.transpose([speed,
-                             np.cos(angle_feat), 
-                             np.sin(angle_feat),
+                             np.cos(angle_feat) * speed, 
+                             np.sin(angle_feat) * speed,
                              dir_a,
                              dir_b,
                              is_far,
-                             depth
+                             depth, 
                              ]), angle
 
     # TODO: vessel_label can be class attribute
@@ -154,8 +157,10 @@ class SingleTrackModel(BaseModel):
             mask = (features.ssvid == ssvid)
             features = features[mask]
             features = features.sort_values(by='timestamp')
-            t0 = obj['timestamp'].iloc[0]
-            t1 = obj['timestamp'].iloc[-1]
+            # TODO: parameterize
+            # padding = datetime.timedelta(days=2)
+            t0 = obj['timestamp'].iloc[0] #- padding
+            t1 = obj['timestamp'].iloc[-1] #+ padding
             i0 = np.searchsorted(features.timestamp, t0, side='left')
             i1 = np.searchsorted(features.timestamp, t1, side='right')
             features = features.iloc[i0:i1]
@@ -168,7 +173,9 @@ class SingleTrackModel(BaseModel):
                 'course' : features.course_degrees,
                 'lat' : features.lat,
                 'lon' : features.lon,
-                'depth' : -features.elevation_m,
+                'depth' : -np.sign(features.elevation_m.values) * 
+                            np.log(1 + np.abs(features.elevation_m.values)),
+                'distance' : features.distance_from_shore_km,
                 cls.data_source_lbl : features[cls.data_source_lbl],
                 })
         for kf in keep_fracs:
