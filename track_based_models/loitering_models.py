@@ -8,7 +8,7 @@ import keras
 from keras.models import Model as KerasModel
 from keras.layers import Dense, Dropout, Flatten, ELU, ReLU, Input, Conv1D
 from keras.layers import BatchNormalization, MaxPooling1D, Concatenate
-from keras.layers import Cropping1D, AveragePooling1D, Cropping1D
+from keras.layers import Cropping1D, AveragePooling1D, Cropping1D, LeakyReLU
 from keras.layers.core import Activation, Reshape
 from keras import optimizers
 from .util import hour, minute
@@ -2247,33 +2247,33 @@ class LoiteringModelV15(SingleTrackModel):
         input_layer = Input(shape=(None, 7))
         y = input_layer
         y = Conv1D(depth, 2)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y0 = y = Dropout(0.1)(y)
         y = Conv1D(depth, 4)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = MaxPooling1D(4, strides=3)(y)
         y = Dropout(0.3)(y)
 
         depth *= 2
         y = Conv1D(depth, 5)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y1 = y = Dropout(0.3)(y)
         y = Conv1D(depth, 3)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = MaxPooling1D(4, strides=3)(y)
         y = Dropout(0.5)(y)
 
         depth *= 2
         y = Conv1D(depth, 4)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = Dropout(0.5)(y)
         y = Conv1D(depth, 3)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = Dropout(0.5)(y)
 
@@ -2289,11 +2289,11 @@ class LoiteringModelV15(SingleTrackModel):
         y = Concatenate()([y, 
                             keras.layers.Cropping1D((9,9))(y1)])
         y = Conv1D(depth, 2)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = Dropout(0.3)(y)
         y = Conv1D(depth, 2)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
 
         depth //= 2
@@ -2302,11 +2302,11 @@ class LoiteringModelV15(SingleTrackModel):
         y = keras.layers.Concatenate()([y, 
                             Cropping1D((38,38))(y0)]) # TODO make symmetric
         y = Conv1D(depth, 2)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = Dropout(0.1)(y)
         y = Conv1D(depth, 2)(y)
-        y = ReLU()(y)
+        y = ELU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = Dropout(0.1)(y)
         y = Conv1D(1, 1)(y)
