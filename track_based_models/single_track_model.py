@@ -139,7 +139,7 @@ class SingleTrackModel(BaseModel):
                              dir_a,
                              dir_b,
                              is_far,
-                             depth, 
+                             0 * depth, 
                              ]), angle
 
     # TODO: vessel_label can be class attribute

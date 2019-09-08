@@ -113,3 +113,16 @@ class ConvNetModel5(SingleTrackModel):
                       validation_split=validation_split, 
                       validation_data=validation_data,
                       verbose=verbose, callbacks=callbacks)
+
+
+from track_based_models.loitering_models import LoiteringModelV15 as ModelBase
+
+class Model(ModelBase):
+
+    data_source_lbl='fishing' 
+    data_target_lbl='is_target_encounter'
+    data_undefined_vals = (0, 3)
+    data_defined_vals = (1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (2,)
+    data_far_time = 3 * 10 * minute
