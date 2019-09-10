@@ -20,6 +20,8 @@ class SingleTrackModel(BaseModel):
     data_true_vals = None
     data_false_vals = None
 
+    vessel_label = None
+
     def create_features_and_times(self, data, angle=77, max_deltas=0):
         t, xi, y, label_i, defined_i = self.build_features(data, skip_label=True)
         min_ndx = 0
@@ -91,6 +93,8 @@ class SingleTrackModel(BaseModel):
         if skip_label:
             label_i = defined_i = None
         else:
+            for w in obj[cls.data_source_lbl]:
+                assert w in cls.data_defined_vals or w in cls.data_undefined_vals
             obj['is_defined'] = [w in cls.data_defined_vals for w in obj[cls.data_source_lbl]]
             obj[cls.data_target_lbl] = [w in cls.data_true_vals for w in obj[cls.data_source_lbl]]
             _, raw_label_i = lin_interp(obj, cls.data_target_lbl, delta=delta, mask=None, # Don't mask labels - use undropped labels for training 
@@ -151,9 +155,9 @@ class SingleTrackModel(BaseModel):
         features = features[mask]
         features = features.sort_values(by='timestamp')
         # TODO: parameterize
-        # padding = datetime.timedelta(days=2)
-        t0 = train['timestamp'].iloc[0] #- padding
-        t1 = train['timestamp'].iloc[-1] #+ padding
+        padding = datetime.timedelta(hours=6)
+        t0 = train['timestamp'].iloc[0] - padding
+        t1 = train['timestamp'].iloc[-1] + padding
         i0 = np.searchsorted(features.timestamp, t0, side='left')
         i1 = np.searchsorted(features.timestamp, t1, side='right')
         features = features.iloc[i0:i1]
@@ -171,30 +175,29 @@ class SingleTrackModel(BaseModel):
             cls.data_source_lbl : features[cls.data_source_lbl],
             })
 
-    # TODO: vessel_label can be class attribute
     @classmethod
-    def load_data(cls, path, delta, features, skip_label=False, vessel_label=None):
-        ssvid, train = util.load_training_data(path, vessel_label, cls.data_source_lbl)
+    def load_data(cls, path, features):
+        ssvid, train = util.load_training_data(path, cls.vessel_label, cls.data_source_lbl)
         return cls.merge_train_with_features(ssvid, train, features)
 
 
     @classmethod
     def add_obj_data(cls, obj, features):
-        obj['is_defined'] = [(i in cls.data_defined_vals) for i in obj[cls.data_source_lbl]]
         obj[cls.data_target_lbl] = [(i in cls.data_true_vals) for i in obj[cls.data_source_lbl]]
-        _, raw_label_i = lin_interp(obj, cls.data_target_lbl, t=features.timestamp, 
+        _, raw_is_true = lin_interp(obj, cls.data_target_lbl, t=features.timestamp, 
                                     mask=None, # Don't mask labels - use undropped labels for training 
                                     func=lambda x: np.array(x) == 1) # is it a set
-        features[cls.data_target_lbl] = raw_label_i > 0.5
+        is_true_mask = raw_is_true > 0.5
 
-        _, raw_defined_i = lin_interp(obj, 'is_defined', t=features.timestamp, 
+        obj['is_defined'] = [(i in cls.data_defined_vals) for i in obj[cls.data_source_lbl]]
+        _, raw_is_defined = lin_interp(obj, 'is_defined', t=features.timestamp, 
                                       mask=None, # Don't mask labels - use undropped labels for training 
                                       func=lambda x: np.array(x) == 1) # is it a set
-        features['is_defined'] = raw_defined_i > 0.5
+        is_defined_mask = raw_is_defined > 0.5
+
         source = []
-        for is_def, is_true in zip(features['is_defined'],
-                                   features[cls.data_target_lbl]):
-            if is_def:
+        for is_defined, is_true in zip(is_defined_mask, is_true_mask):
+            if is_defined:
                 if is_true:
                     source.append(cls.data_true_vals[0])
                 else:
@@ -205,17 +208,15 @@ class SingleTrackModel(BaseModel):
 
 
     @classmethod
-    def generate_data(cls, paths, min_samples, seed=888, 
-                    skip_label=False, keep_fracs=(1,), noise=None, 
-                    precomp_features=None, vessel_label=None,
-                    extra_time_deltas=0):
+    def generate_inputs(cls, src_objs, min_samples, seed=888, 
+                    skip_label=False, keep_fracs=(1,), noise=None, extra_time_deltas=0):
         delta = cls.delta
         window = cls.window + extra_time_deltas * cls.time_point_delta * delta
         label_window = delta * (1 + extra_time_deltas * cls.time_point_delta)
         assert window % delta == 0, 'delta must evenly divide window'
         # Weight so that sets with multiple classification get sqrt(n) more representation
         # Since they have some extra information (n is the number of classifications)
-        subsamples = int(round(min_samples / np.sqrt(len(paths))))
+        subsamples = int(round(min_samples / np.sqrt(len(src_objs))))
         # Set seed for reproducibility
         np.random.seed(seed)
         times = []
@@ -227,8 +228,7 @@ class SingleTrackModel(BaseModel):
         lbl_pts = label_window // delta
         lbl_offset = (window_pts - lbl_pts) // 2
         min_ndx = 0
-        for p in paths:
-            data = cls.load_data(p, delta, precomp_features, skip_label, vessel_label)
+        for data in src_objs:
             for kf in keep_fracs:
                 t, x, y, label, dfnd = cls.build_features(data, skip_label=skip_label, keep_frac=kf)
                 
@@ -262,7 +262,67 @@ class SingleTrackModel(BaseModel):
                         defined.append((windowed_defined.mean(axis=-1) > 0.5) &
                             ((windowed_labels.mean(axis=-1) < 0.3) | 
                                 (windowed_labels.mean(axis=-1) > 0.7)))
-        return times, np.array(features), np.array(labels), np.array(targets), np.array(defined)  ### CHANGE
+        return times, np.array(features), np.array(labels), np.array(targets), np.array(defined) 
+
+
+    @classmethod
+    def generate_data(cls, paths, min_samples, seed=888, 
+                    skip_label=False, keep_fracs=(1,), noise=None, 
+                    precomp_features=None, extra_time_deltas=0):
+        delta = cls.delta
+        window = cls.window + extra_time_deltas * cls.time_point_delta * delta
+        label_window = delta * (1 + extra_time_deltas * cls.time_point_delta)
+        assert window % delta == 0, 'delta must evenly divide window'
+        # Weight so that sets with multiple classification get sqrt(n) more representation
+        # Since they have some extra information (n is the number of classifications)
+        subsamples = int(round(min_samples / np.sqrt(len(paths))))
+        # Set seed for reproducibility
+        np.random.seed(seed)
+        times = []
+        features = []
+        targets = []
+        labels = []
+        defined = []
+        window_pts = window // delta
+        lbl_pts = label_window // delta
+        lbl_offset = (window_pts - lbl_pts) // 2
+        min_ndx = 0
+        for p in paths:
+            data = cls.load_data(p, precomp_features)
+            for kf in keep_fracs:
+                t, x, y, label, dfnd = cls.build_features(data, skip_label=skip_label, keep_frac=kf)
+                
+                max_ndx = len(x) - window_pts
+                ndxs = []
+                for ndx in range(min_ndx, max_ndx + 1):
+                    if dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].sum() >= lbl_pts / 2.0:
+                        ndxs.append(ndx)
+                if not ndxs:
+                    print("skipping", p, "because it is too short")
+                    continue
+                for ss in range(subsamples):
+                    ndx = np.random.choice(ndxs)                
+                    t_chunk = t[ndx:ndx+window_pts]
+                    f_chunk, _ = cls.cook_features(y[ndx:ndx+window_pts], noise=noise)
+                    times.append(t_chunk) 
+                    features.append(f_chunk)
+                    if skip_label:
+                        targets.append(None)
+                        labels.append(None)
+                        defined.append(None)
+                    else:
+                        # print(label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].shape, 
+                        #     lbl_pts)
+                        targets.append(label[ndx:ndx+window_pts]) 
+                        windowed_labels = label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
+                            lbl_pts, -1)
+                        labels.append(windowed_labels.mean(axis=-1) > 0.5)
+                        windowed_defined = dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
+                            lbl_pts, -1)
+                        defined.append((windowed_defined.mean(axis=-1) > 0.5) &
+                            ((windowed_labels.mean(axis=-1) < 0.3) | 
+                                (windowed_labels.mean(axis=-1) > 0.7)))
+        return times, np.array(features), np.array(labels), np.array(targets), np.array(defined) 
 
 
 

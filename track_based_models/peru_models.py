@@ -127,6 +127,8 @@ class Model(ModelBase):
     data_false_vals = (2,)
     data_far_time = 3 * 10 * minute
 
+    vessel_label = 'position_data'
+
     @classmethod
     def cook_features(cls, raw_features, angle=None, noise=None):
         speed = raw_features[:, 0]

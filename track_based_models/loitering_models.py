@@ -2238,6 +2238,8 @@ class LoiteringModelV15(SingleTrackModel):
     data_false_vals = (2,)
     data_far_time = 3 * 10 * minute
     
+    vessel_label = 'position_data_reefer'
+
     def __init__(self):
         
         self.normalizer = None
@@ -2359,6 +2361,8 @@ class LoiteringModelV16(SingleTrackModel):
     data_false_vals = (2,)
     data_far_time = 3 * 10 * minute
     
+    vessel_label = 'position_data_reefer'
+
     def __init__(self):
         
         self.normalizer = None
@@ -2442,16 +2446,18 @@ class LoiteringModelV16(SingleTrackModel):
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
 
-    def preprocess(self, x):
+    def preprocess(self, x, fit=False):
         x0 = np.asarray(x) 
         x = 0.5 * (x0[:, 1:, :] + x0[:, :-1, :])
         x[:, :, 3:5] = x0[:, 1:, 3:5] - x0[:, :-1, 3:5]
+        if fit:
+            self.normalizer = Normalizer().fit(x)
         return self.normalizer.norm(x)
 
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
             validation_split=0, validation_data=0, verbose=1, callbacks=[]):
-        self.normalizer = Normalizer().fit(x)
-        x1 = self.preprocess(x)
+        # TODO: export this fit / preprocess logic everywhere.
+        x1 = self.preprocess(x, fit=True)
         l1 = np.asarray(labels).reshape(len(labels), -1, 1)
         if validation_data not in (None, 0):
             a, b, c = validation_data
@@ -2460,4 +2466,5 @@ class LoiteringModelV16(SingleTrackModel):
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data,
-                      verbose=verbose, callbacks=callbacks)
+                      verbose=verbose, callbacks=callbacks,
+                             weighted_metrics=['accuracy', ])
