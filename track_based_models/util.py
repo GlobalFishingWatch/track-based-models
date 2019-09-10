@@ -195,8 +195,7 @@ default_feature_mapping = {
     'course' : 'course_degrees',
     'lat' : 'lat',
     'lon' : 'lon',
-    'depth' : lambda x: -np.sign(x.elevation_m.values) * 
-                np.log(1 + np.abs(x.elevation_m.values)),
+    'elevation' : 'elevation_m',
     'distance' : 'distance_from_shore_km'
 }
 
@@ -226,4 +225,16 @@ def features_to_data(features, ssvid=None, t0=None, t1=None,
         else:
             columns[k] = v(features)
     return pd.DataFrame(columns)
+
+
+def load_training_data(path, vessel_label, data_source_lbl):     
+    raw_obj = load_json_data(path, vessel_label=vessel_label)  
+    obj = convert_from_legacy_format(raw_obj)
+    mask = (~np.isnan(np.array(raw_obj['sogs'])) & 
+            ~np.isnan(np.array(raw_obj['courses'])))
+    if data_source_lbl is not None:
+        obj[data_source_lbl] = np.asarray(raw_obj[data_source_lbl])[mask]
+    ssvid = raw_obj['mmsi']
+    return ssvid, obj
+
 

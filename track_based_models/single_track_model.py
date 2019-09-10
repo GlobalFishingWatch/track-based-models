@@ -79,7 +79,7 @@ class SingleTrackModel(BaseModel):
         if 'min_dt_min' in obj:
             dts += lin_interp(obj, 'min_dt_min', mask=None) * 60
         # depths
-        _, y5 = lin_interp(obj, 'depth', delta=delta, mask=mask)
+        _, y5 = lin_interp(obj, 'elevation', delta=delta, mask=mask)
         # Distance from shore
         _, y6 = lin_interp(obj, 'distance', delta=delta, mask=mask)
         # Times
@@ -106,7 +106,7 @@ class SingleTrackModel(BaseModel):
                                           func=lambda x: np.array(x) == 1) # is it a set
             defined_i = raw_defined_i > 0.5
         #
-        return t, xi, y, label_i, defined_i
+        return np.asarray(t), xi, y, label_i, defined_i
 
     @classmethod
     def cook_features(cls, raw_features, angle=None, noise=None):
@@ -124,9 +124,10 @@ class SingleTrackModel(BaseModel):
         d2 = (lon - lon0) * scale
         dir_a = np.cos(angle) * d2 - np.sin(angle) * d1
         dir_b = np.cos(angle) * d1 + np.sin(angle) * d2
-        depth = raw_features[:, 5]
+        depth = -raw_features[:, 5]
         distance = raw_features[:, 6]
 
+        logged_depth = np.sign(depth) * np.log(1 + np.abs(depth))
         if noise is None:
             noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
         noisy_time = np.maximum(raw_features[:, 4] / 
@@ -139,55 +140,42 @@ class SingleTrackModel(BaseModel):
                              dir_a,
                              dir_b,
                              is_far,
-                             depth, 
+                             logged_depth, 
                              ]), angle
+
+    # TODO: Can this be pushed down to basemodel?
+    @classmethod
+    def merge_train_with_features(cls, ssvid, train, features):
+         # Filter features down to just the ssvid / time span we want
+        mask = (features.ssvid == ssvid)
+        features = features[mask]
+        features = features.sort_values(by='timestamp')
+        # TODO: parameterize
+        # padding = datetime.timedelta(days=2)
+        t0 = train['timestamp'].iloc[0] #- padding
+        t1 = train['timestamp'].iloc[-1] #+ padding
+        i0 = np.searchsorted(features.timestamp, t0, side='left')
+        i1 = np.searchsorted(features.timestamp, t1, side='right')
+        features = features.iloc[i0:i1]
+        cls.add_obj_data(train, features)
+        # TODO: revamp so we use features name directly
+        # Rename so we can use features as obj:
+        return pd.DataFrame({
+            'timestamp' : features.timestamp,
+            'speed' : features.speed_knots,
+            'course' : features.course_degrees,
+            'lat' : features.lat,
+            'lon' : features.lon,
+            'elevation' : features.elevation_m,
+            'distance' : features.distance_from_shore_km,
+            cls.data_source_lbl : features[cls.data_source_lbl],
+            })
 
     # TODO: vessel_label can be class attribute
     @classmethod
-    def load_data(cls, path, delta, skip_label=False, keep_fracs=[1], features=None,
-                         vessel_label=None):
-        obj_tv = util.load_json_data(path, vessel_label=vessel_label)  
-        obj = util.convert_from_legacy_format(obj_tv)
-        mask = ~np.isnan(np.array(obj_tv['sogs'])) & ~np.isnan(np.array(obj_tv['courses']))
-        obj[cls.data_source_lbl] = np.asarray(obj_tv[cls.data_source_lbl])[mask]
-        # if features is None:
-        if features is not None:
-            # Filter features down to just the ssvid / time span we want
-            ssvid = obj_tv['mmsi']
-            mask = (features.ssvid == ssvid)
-            features = features[mask]
-            features = features.sort_values(by='timestamp')
-            # TODO: parameterize
-            # padding = datetime.timedelta(days=2)
-            t0 = obj['timestamp'].iloc[0] #- padding
-            t1 = obj['timestamp'].iloc[-1] #+ padding
-            i0 = np.searchsorted(features.timestamp, t0, side='left')
-            i1 = np.searchsorted(features.timestamp, t1, side='right')
-            features = features.iloc[i0:i1]
-            # Add obj data to features
-            cls.add_obj_data(obj, features)
-            # Rename so we can use features as obj:
-            obj = pd.DataFrame({
-                'timestamp' : features.timestamp,
-                'speed' : features.speed_knots,
-                'course' : features.course_degrees,
-                'lat' : features.lat,
-                'lon' : features.lon,
-                'depth' : -np.sign(features.elevation_m.values) * 
-                            np.log(1 + np.abs(features.elevation_m.values)),
-                'distance' : features.distance_from_shore_km,
-                cls.data_source_lbl : features[cls.data_source_lbl],
-                })
-        for kf in keep_fracs:
-            try:
-                t, x, y, label, is_defined = cls.build_features(obj, 
-                                                skip_label=skip_label, keep_frac=kf)
-            except:
-                raise
-                print('skipping', path, kf, 'due to unknown error')
-                continue
-            t = np.asarray(t)
-            yield (t, x, y, label, is_defined)
+    def load_data(cls, path, delta, features, skip_label=False, vessel_label=None):
+        ssvid, train = util.load_training_data(path, vessel_label, cls.data_source_lbl)
+        return cls.merge_train_with_features(ssvid, train, features)
 
 
     @classmethod
@@ -240,14 +228,9 @@ class SingleTrackModel(BaseModel):
         lbl_offset = (window_pts - lbl_pts) // 2
         min_ndx = 0
         for p in paths:
-            for data in cls.load_data(p, delta, skip_label, 
-                                    keep_fracs=keep_fracs, 
-                                    features=precomp_features, 
-                                    vessel_label=vessel_label):
-                if data is None:
-                    print('skipping', p, 'because data is None')
-                    continue
-                (t, x, y, label, dfnd) = data
+            data = cls.load_data(p, delta, precomp_features, skip_label, vessel_label)
+            for kf in keep_fracs:
+                t, x, y, label, dfnd = cls.build_features(data, skip_label=skip_label, keep_frac=kf)
                 
                 max_ndx = len(x) - window_pts
                 ndxs = []
