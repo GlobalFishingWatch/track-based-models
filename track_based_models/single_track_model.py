@@ -131,20 +131,18 @@ class SingleTrackModel(BaseModel):
         depth = -raw_features[:, 5]
         distance = raw_features[:, 6]
 
-        logged_depth = np.sign(depth) * np.log(1 + np.abs(depth))
         if noise is None:
             noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
         noisy_time = np.maximum(raw_features[:, 4] / 
                                 float(cls.data_far_time) + noise, 0)
         is_far = np.exp(-noisy_time) 
-        dir_h = np.hypot(dir_a, dir_b)
         return np.transpose([speed,
-                             np.cos(angle_feat) * speed, 
-                             np.sin(angle_feat) * speed,
+                             np.cos(angle_feat), 
+                             np.sin(angle_feat),
                              dir_a,
                              dir_b,
                              is_far,
-                             logged_depth, 
+                             depth, 
                              ]), angle
 
     # TODO: Can this be pushed down to basemodel?

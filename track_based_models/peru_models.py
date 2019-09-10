@@ -160,16 +160,15 @@ class Model(ModelBase):
 
         # noisy_depth = np.clip(depth + 1000 * noise, 0, 200)
         # logged_depth = np.log(1 + noisy_depth)
-        depth = np.clip(depth, 0, 200)
-        logged_depth = np.log(1 + depth) + 20 * noise2
+        depth = np.clip(depth, 0, 200) + 1000 * noise2
         speed = speed + noise3
 
         is_far = np.exp(-noisy_time) 
         return np.transpose([speed,
-                             np.cos(angle_feat) * speed, 
-                             np.sin(angle_feat) * speed,
+                             np.cos(angle_feat), 
+                             np.sin(angle_feat),
                              dir_a,
                              dir_b,
                              is_far,
-                             logged_depth, 
+                             depth, 
                              ]), angle
