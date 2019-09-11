@@ -2325,8 +2325,12 @@ class LoiteringModelV15(SingleTrackModel):
 
     def preprocess(self, x):
         x0 = np.asarray(x) 
-        x = 0.5 * (x0[:, 1:, :] + x0[:, :-1, :])
-        x[:, :, 3:5] = x0[:, 1:, 3:5] - x0[:, :-1, 3:5]
+        try:
+            x = 0.5 * (x0[:, 1:, :] + x0[:, :-1, :])
+            x[:, :, 3:5] = x0[:, 1:, 3:5] - x0[:, :-1, 3:5]
+        except:
+            logging.error('x is wrong shape: {}'.format(x0.shape))
+            raise
         return self.normalizer.norm(x)
 
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
