@@ -2323,7 +2323,7 @@ class LoiteringModelV15(SingleTrackModel):
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
 
-    def preprocess(self, x):
+    def preprocess(self, x, fit=False):
         x0 = np.asarray(x) 
         try:
             x = 0.5 * (x0[:, 1:, :] + x0[:, :-1, :])
@@ -2331,6 +2331,8 @@ class LoiteringModelV15(SingleTrackModel):
         except:
             logging.error('x is wrong shape: {}'.format(x0.shape))
             raise
+        if fit:
+            self.normalizer = Normalizer().fit(x)
         return self.normalizer.norm(x)
 
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
@@ -2452,12 +2454,8 @@ class LoiteringModelV16(SingleTrackModel):
 
     def preprocess(self, x, fit=False):
         x0 = np.asarray(x) 
-        try:
-            x = 0.5 * (x0[:, 1:, :] + x0[:, :-1, :])
-            x[:, :, 3:5] = x0[:, 1:, 3:5] - x0[:, :-1, 3:5]
-        except:
-            logging.error('x is wrong shape: {}'.format(x0.shape))
-            raise
+        x = 0.5 * (x0[:, 1:, :] + x0[:, :-1, :])
+        x[:, :, 3:5] = x0[:, 1:, 3:5] - x0[:, :-1, 3:5]
         if fit:
             self.normalizer = Normalizer().fit(x)
         return self.normalizer.norm(x)
