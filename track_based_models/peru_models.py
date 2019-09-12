@@ -149,19 +149,16 @@ class Model(ModelBase):
         distance = raw_features[:, 6]
 
 
-        noise1 = noise2 = noise3 = noise
+        noise1 = noise2 = noise
         if noise is None:
             noise1 = np.random.normal(0, .05, size=len(raw_features[:, 4]))
             noise2 = np.random.normal(0, .05, size=len(raw_features[:, 4]))
-            noise3 = np.random.normal(0, .05, size=len(raw_features[:, 4]))
 
         noisy_time = np.maximum(raw_features[:, 4] / 
                                 float(cls.data_far_time) + noise1, 0)
 
-        # noisy_depth = np.clip(depth + 1000 * noise, 0, 200)
-        # logged_depth = np.log(1 + noisy_depth)
-        depth = np.clip(depth, 0, 200) + 1000 * noise2
-        speed = speed + noise3
+        depth = np.clip(depth, 0, 200)
+        logged_depth = np.log(1 + depth) + 20 * noise2
 
         is_far = np.exp(-noisy_time) 
         return np.transpose([speed,
@@ -170,5 +167,5 @@ class Model(ModelBase):
                              dir_a,
                              dir_b,
                              is_far,
-                             depth, 
+                             logged_depth, 
                              ]), angle

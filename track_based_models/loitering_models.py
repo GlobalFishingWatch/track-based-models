@@ -11,6 +11,7 @@ from keras.layers import BatchNormalization, MaxPooling1D, Concatenate
 from keras.layers import Cropping1D, AveragePooling1D, Cropping1D
 from keras.layers.core import Activation, Reshape
 from keras import optimizers
+import logging
 from .util import hour, minute
 from .base_model import hybrid_pool_layer_2, Normalizer
 from .single_track_model import SingleTrackModel
