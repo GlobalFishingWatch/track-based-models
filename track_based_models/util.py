@@ -88,6 +88,10 @@ def lin_interp(obj, key, delta=None, t=None, mask=None, func=None):
     
     return t, np.interp(t, xp, fp)
   
+def interp_degrees(obj, key, delta=None, t=None, mask=None):
+    xi, cos_yi = lin_interp(obj, key, delta=delta, mask=mask, func=cos_deg)
+    _,  sin_yi = lin_interp(obj, key, delta=delta, mask=mask, func=sin_deg)
+    return xi, np.degrees(np.arctan2(sin_yi, cos_yi))
 
 def compute_xp(obj, mask):
     timestamps = as_datetime_seq(obj['timestamp'])
