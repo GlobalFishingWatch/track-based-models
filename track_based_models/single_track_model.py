@@ -128,7 +128,7 @@ class SingleTrackModel(BaseModel):
                              np.sin(angle_feat),
                              dir_a,
                              dir_b,
-                             is_far,
+                             0 * is_far,
                              depth, 
                              ]), angle
 
