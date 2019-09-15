@@ -215,7 +215,7 @@ class SingleTrackModel(BaseModel):
         lbl_pts = label_window // delta
         lbl_offset = (window_pts - lbl_pts) // 2
         min_ndx = 0
-        for data in src_objs:
+        for i, data in enumerate(src_objs):
             for kf in keep_fracs:
                 t, x, y, label, dfnd = cls.build_features(data, skip_label=skip_label, keep_frac=kf)
                 
@@ -225,7 +225,7 @@ class SingleTrackModel(BaseModel):
                     if dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].sum() >= lbl_pts / 2.0:
                         ndxs.append(ndx)
                 if not ndxs:
-                    print("skipping", p, "because it is too short")
+                    print("skipping object", i, "because it is too short")
                     continue
                 for ss in range(subsamples):
                     ndx = np.random.choice(ndxs)                
