@@ -135,44 +135,64 @@ class Model(SingleTrackDiffModel):
 
     @classmethod
     def cook_features(cls, raw_features, angle=None, noise=None):
-        speed = raw_features[:, 0]
-        angle = np.random.uniform(0, 360) if (angle is None) else angle
-        radians = np.radians(angle)
-        angle_feat = angle + (90 - raw_features[:, 1])
-        
-        ndx = np.random.randint(len(raw_features))
-        lat0 = raw_features[ndx, 2]
-        lon0 = raw_features[ndx, 3]
-        lat = raw_features[:, 2] 
-        lon = raw_features[:, 3] 
-        scale = np.cos(np.radians(lat))
-        d1 = lat - lat0
-        d2 = (lon - lon0) * scale
-        dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
-        dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
-        depth = -raw_features[:, 5]
-        distance = raw_features[:, 6]
+        angle, f = cls._augment_features(raw_features, angle, noise)
 
-        noise1 = noise2 = noise
         if noise is None:
-            noise1 = np.random.normal(0, .05, size=len(raw_features[:, 4]))
-            noise2 = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+            noise = np.random.normal(0, .05, size=len(f.depth))
 
-        noisy_time = np.maximum(raw_features[:, 4] / 
-                                float(cls.data_far_time) + noise1, 0)
+        depth = np.clip(f.depth, 0, 200)
+        logged_depth = np.log(1 + depth) + 40 * noise
 
-        depth = np.clip(depth, 0, 200)
-        logged_depth = np.log(1 + depth) + 40 * noise2
-
-        is_far = np.exp(-noisy_time) 
-        return np.transpose([speed,
-                             np.cos(np.radians(angle_feat)), 
-                             np.sin(np.radians(angle_feat)),
-                             dir_a,
-                             dir_b,
-                             is_far,
-                             depth, 
+        return np.transpose([f.speed,
+                             np.cos(np.radians(f.angle_feature)), 
+                             np.sin(np.radians(f.angle_feature)),
+                             f.dir_a,
+                             f.dir_b,
+                             np.exp(-f.delta_time),
+                             logged_depth, 
                              ]), angle
+
+
+    # @classmethod
+    # def cook_features(cls, raw_features, angle=None, noise=None):
+    #     speed = raw_features[:, 0]
+    #     angle = np.random.uniform(0, 360) if (angle is None) else angle
+    #     radians = np.radians(angle)
+    #     angle_feat = angle + (90 - raw_features[:, 1])
+        
+    #     ndx = np.random.randint(len(raw_features))
+    #     lat0 = raw_features[ndx, 2]
+    #     lon0 = raw_features[ndx, 3]
+    #     lat = raw_features[:, 2] 
+    #     lon = raw_features[:, 3] 
+    #     scale = np.cos(np.radians(lat))
+    #     d1 = lat - lat0
+    #     d2 = (lon - lon0) * scale
+    #     dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
+    #     dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
+    #     depth = -raw_features[:, 5]
+    #     distance = raw_features[:, 6]
+
+    #     noise1 = noise2 = noise
+    #     if noise is None:
+    #         noise1 = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+    #         noise2 = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+
+    #     noisy_time = np.maximum(raw_features[:, 4] / 
+    #                             float(cls.data_far_time) + noise1, 0)
+
+    #     depth = np.clip(depth, 0, 200)
+    #     logged_depth = np.log(1 + depth) + 40 * noise2
+
+    #     is_far = np.exp(-noisy_time) 
+    #     return np.transpose([speed,
+    #                          np.cos(np.radians(angle_feat)), 
+    #                          np.sin(np.radians(angle_feat)),
+    #                          dir_a,
+    #                          dir_b,
+    #                          is_far,
+    #                          logged_depth, 
+    #                          ]), angle
 
     # @classmethod
     # def cook_features(cls, raw_features, angle=None, noise=None):

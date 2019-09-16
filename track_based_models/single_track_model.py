@@ -1,3 +1,4 @@
+from collections import namedtuple
 import datetime
 import numpy as np
 import os
@@ -99,8 +100,14 @@ class SingleTrackModel(BaseModel):
             defined = (raw_defined > 0.5)
         return np.asarray(t), xi, y, label, defined
 
+
+    AugmentedFeatures = namedtuple('AugmentedFeatures',
+        ['speed', 'delta_time', 'angle_feature', 
+        'dir_a', 'dir_b', 'depth', 'distance'])
+
     @classmethod
-    def cook_features(cls, raw_features, angle=None, noise=None):
+    def _augment_features(cls, raw_features, angle=None, noise=None):
+        """Perform the augmention portion of cook features"""
         speed = raw_features[:, 0]
         angle = np.random.uniform(0, 360) if (angle is None) else angle
         radians = np.radians(angle)
@@ -121,16 +128,23 @@ class SingleTrackModel(BaseModel):
 
         if noise is None:
             noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
-        noisy_time = np.maximum(raw_features[:, 4] / 
+        delta_time = np.maximum(raw_features[:, 4] / 
                                 float(cls.data_far_time) + noise, 0)
-        is_far = np.exp(-noisy_time) 
-        return np.transpose([speed,
-                             np.cos(np.radians(angle_feat)), 
-                             np.sin(np.radians(angle_feat)),
-                             dir_a,
-                             dir_b,
-                             is_far,
-                             depth, 
+
+        return angle, cls.AugmentedFeatures(speed, delta_time, angle_feat, 
+                        dir_a, dir_b, depth, distance)
+
+    @classmethod
+    def cook_features(cls, raw_features, angle=None, noise=None):
+        angle, f = cls._augment_features(raw_features, angle, noise)
+
+        return np.transpose([f.speed,
+                             np.cos(np.radians(f.angle_feature)), 
+                             np.sin(np.radians(f.angle_feature)),
+                             f.dir_a,
+                             f.dir_b,
+                             np.exp(-f.delta_time),
+                             f.depth, 
                              ]), angle
 
     @classmethod
