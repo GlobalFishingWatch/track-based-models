@@ -1,5 +1,6 @@
 from __future__ import division
 from __future__ import print_function
+from collections import namedtuple
 import datetime
 import dateutil.parser
 import json
@@ -60,6 +61,45 @@ def as_datetime_seq(value):
     else:
         return value
 
+# TODO: rename xp field to be more meaningful
+InterpInfo = namedtuple('InterpInfo',
+    ['seconds', 'xp', 'mask', 'timestamps'])
+
+def setup_lin_interp(obj, delta=None, t=None, mask=None):
+    if t is not None:
+        assert delta is None, 'only one of `delta` or `t` may be specified'
+        # convert timestamp to seconds
+        t = np.array([int((x - obj['timestamp'].iloc[0]).total_seconds()) for x in t])
+    if delta is None:
+        assert t is not None, 'only one of `delta` or `t` may be specified'
+    else:
+        assert delta % 1 == 0, 'delta must be a whole number of seconds'
+        
+    timestamps = as_datetime_seq(obj['timestamp'])
+    assert is_sorted(timestamps), 'data must be sorted'
+    if mask is not None:
+        timestamps = [x for (i, x) in enumerate(timestamps) if mask[i]]
+    ts0 = timestamps[0]
+    xp = np.array([int((ts - ts0).total_seconds()) for ts in timestamps])
+    a_smidgen = 0.1 # Added so that we capture the last point if it's on an even delta
+    if t is None:
+        t = np.arange(xp[0], xp[-1] + a_smidgen, delta)
+
+    return InterpInfo(seconds=t, xp=xp, mask=mask, timestamps=timestamps)
+
+def do_lin_interp(obj, info, key, func=None):
+    fp = obj[key]
+    if info.mask is not None:
+        fp = [x for (i, x) in enumerate(fp) if info.mask[i]]
+    if func is not None:
+        fp = func(fp)
+    return np.interp(info.seconds, info.xp, fp)
+
+def do_degree_interp(obj, info, key):
+    cos_yi = do_lin_interp(obj, info, key, func=cos_deg)
+    sin_yi = do_lin_interp(obj, info, key, func=sin_deg)
+    return np.degrees(np.arctan2(sin_yi, cos_yi))
+
 def lin_interp(obj, key, delta=None, t=None, mask=None, func=None):
     if t is not None:
         assert delta is None, 'only one of `delta` or `t` may be specified'
@@ -70,24 +110,26 @@ def lin_interp(obj, key, delta=None, t=None, mask=None, func=None):
     else:
         assert delta % 1 == 0, 'delta must be a whole number of seconds'
         
-    fp = obj[key]
 
     timestamps = as_datetime_seq(obj['timestamp'])
     assert is_sorted(timestamps), 'data must be sorted'
     if mask is not None:
-        fp = [x for (i, x) in enumerate(fp) if mask[i]]
         timestamps = [x for (i, x) in enumerate(timestamps) if mask[i]]
-    if func is not None:
-        fp = func(fp)
     ts0 = timestamps[0]
     xp = np.array([int((ts - ts0).total_seconds()) for ts in timestamps])
     a_smidgen = 0.1 # Added so that we capture the last point if it's on an even delta
-    
     if t is None:
         t = np.arange(xp[0], xp[-1] + a_smidgen, delta)
-    
+
+    fp = obj[key]
+    if mask is not None:
+        fp = [x for (i, x) in enumerate(fp) if mask[i]]
+    if func is not None:
+        fp = func(fp)
+
     return t, np.interp(t, xp, fp)
   
+
 def interp_degrees(obj, key, delta=None, t=None, mask=None):
     xi, cos_yi = lin_interp(obj, key, delta=delta, mask=mask, func=cos_deg)
     _,  sin_yi = lin_interp(obj, key, delta=delta, mask=mask, func=sin_deg)
@@ -167,32 +209,6 @@ def add_predictions(data, delta, times, predictions, label='inferred'):
         i1 = np.searchsorted(timestamps, t1, side='right')
         preds[i0:i1] = p
     data[label] = preds
-
-# TODO: check if this is used
-def convert_from_features(features, obj=None):
-    # Filter features down to just the ssvid / time span we want
-    ssvid = os.path.basename(path).split('_')[0]
-    mask = (features.ssvid == ssvid)
-    features = features[mask]
-    features = features.sort_values(by='timestamp')
-    if obj is not None:
-        timestamps = [x.to_pydatetime() for x in features.timestamp]
-        t0 = obj['timestamp'].iloc[0].to_pydatetime()
-        t1 = obj['timestamp'].iloc[-1].to_pydatetime()
-        i0 = np.searchsorted(timestamps, t0, side='left')
-        i1 = np.searchsorted(timestamps, t1, side='right')
-        features = features.iloc[i0:i1]
-        # Add fishing data to features
-        add_obj_data(obj, features)
-    # Rename so we can use featurs as obj:
-    obj = pd.DataFrame({
-        'timestamp' : features.timestamp,
-        'speed' : features.speed_knots,
-        'course' : features.course_degrees,
-        'lat' : features.lat,
-        'lon' : features.lon,
-        'fishing' : features.fishing,
-        })
 
 default_feature_mapping = {
     'speed' : 'speed_knots',

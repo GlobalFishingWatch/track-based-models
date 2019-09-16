@@ -4,7 +4,7 @@ import numpy as np
 import os
 import pandas as pd
 from . import util
-from .util import minute, lin_interp, interp_degrees 
+from .util import minute
 from .base_model import BaseModel, Normalizer
 
 class SingleTrackModel(BaseModel):
@@ -23,6 +23,8 @@ class SingleTrackModel(BaseModel):
 
     vessel_label = None
 
+    feature_padding_hours = 6.0
+
     def create_features_and_times(self, data, angle=77, max_deltas=0):
         t, xi, y, label_i, defined_i = self.build_features(data, skip_label=True)
         min_ndx = 0
@@ -39,14 +41,7 @@ class SingleTrackModel(BaseModel):
         return features, times
 
     @classmethod
-    def build_features(cls, obj, skip_label=False, keep_frac=1.0):
-        # TODO: compute t, dt and xp once and then use simple
-        # TODO: interp
-        # TODO: rework interp_angle to also use this.
-        delta = cls.delta
-        n_pts = len(obj['lat'])
-        if n_pts == 0:
-            return [], [], [], [], []
+    def make_mask(cls, n_pts, keep_frac):
         assert 0 < keep_frac <= 1, 'keep frac must be between 0 and 1'
         if keep_frac == 1:
             mask = None
@@ -56,49 +51,52 @@ class SingleTrackModel(BaseModel):
             # stays the same.
             mask = np.random.uniform(0, 1, size=[n_pts]) < keep_frac
             mask[0] = mask[-1] = True 
-            
-        assert np.isnan(obj['speed']).sum() == np.isnan(obj['course']).sum() == 0, (
-                'null values are not allow in the data, please filter first')
+        return mask
 
-        xi, speeds = lin_interp(obj, 'speed', delta=delta, mask=mask)
-        _, courses = interp_degrees(obj, 'course', delta=delta, mask=mask)
-        _, lats = lin_interp(obj, 'lat', delta=delta, mask=mask)
-        _, lons = interp_degrees(obj, 'lon', delta=delta, mask=mask)
+    @classmethod
+    def build_features(cls, obj, skip_label=False, keep_frac=1.0):
+ 
+        assert (np.isnan(obj.speed_knots).sum() == 
+                np.isnan(obj.course_degrees).sum() == 0), (
+                'null values are not allow in the data, please filter first')
+ 
+        n_pts = len(obj['lat'])
+        if n_pts == 0:
+            return [], [], [], [], []
+
+        mask = cls.make_mask(n_pts, keep_frac)
+        interp_info = util.setup_lin_interp(obj, delta=cls.delta, mask=mask)
+
+        speeds = util.do_lin_interp(obj, interp_info, 'speed_knots')
+        courses = util.do_degree_interp(obj, interp_info, 'course_degrees')
+        lats = util.do_degree_interp(obj, interp_info, 'lat')
+        lons = util.do_degree_interp(obj, interp_info, 'lon')
+        elevs = util.do_lin_interp(obj, interp_info, 'elevation_m')
+        dists = util.do_lin_interp(obj, interp_info, 'distance_from_shore_km')
+
         # Compute the interval between the interpolated point and the nearest 
         # point in the base data. The objective is to give the model an idea
         # how reliable a point is.
-        xp = util.compute_xp(obj, mask)
-        dts = util.delta_times(xi, xp)
+        dts = util.delta_times(interp_info.seconds, interp_info.xp)
         # If the base data is already interpolated, add the intervals
         if 'min_dt_min' in obj:
-            _, extra_mins= lin_interp(obj, 'min_dt_min', delta=delta, mask=mask)
-            dts += extra_mins * 60
-        _, elevs = lin_interp(obj, 'elevation', delta=delta, mask=mask)
-        _, dists = lin_interp(obj, 'distance', delta=delta, mask=mask)
-        # Times
-        y = np.transpose([speeds, 
-                          courses,
-                          lats, 
-                          lons, 
-                          dts, 
-                          elevs, 
-                          dists])
+            dts += util.do_lin_interp(obj, interp_info, 'min_dt_min') * 60
 
-        t0 = obj['timestamp'].iloc[0]
-        t = [(t0 + datetime.timedelta(seconds=delta * i)) for i in range(len(y))]
-        #
+        y = np.transpose([speeds, courses, lats, lons, 
+                          dts, elevs, dists])
+
         if skip_label:
             label = defined = None
         else:
              # Don't mask labels - use non dropped labels for training 
-            _, raw_label = lin_interp(obj, cls.data_source_lbl, delta=delta, mask=None,
-                                func=lambda v: [x in cls.data_true_vals for x in v])
-            # Quick and dirty nearest neighbor (must be binary label)
-            label = (raw_label > 0.5)
-            _, raw_defined = lin_interp(obj, cls.data_source_lbl, delta=delta, mask=None,
-                                func=lambda v: [x in cls.data_defined_vals for x in v])
-            defined = (raw_defined > 0.5)
-        return np.asarray(t), xi, y, label, defined
+            unmasked_interp_info = util.setup_lin_interp(obj, delta=cls.delta)
+            label = util.do_lin_interp(obj, unmasked_interp_info, cls.data_source_lbl,
+                                func=lambda v: [x in cls.data_true_vals for x in v]) > 0.5
+            defined = util.do_lin_interp(obj, unmasked_interp_info, cls.data_source_lbl,
+                                func=lambda v: [x in cls.data_defined_vals for x in v]) > 0.5
+
+        t = np.asarray(interp_info.timestamps)
+        return np.asarray(t), interp_info.seconds, y, label, defined
 
 
     AugmentedFeatures = namedtuple('AugmentedFeatures',
@@ -153,60 +151,41 @@ class SingleTrackModel(BaseModel):
         mask = (features.ssvid == ssvid)
         features = features[mask]
         features = features.sort_values(by='timestamp')
-        # TODO: parameterize
-        padding = datetime.timedelta(hours=6)
+        padding = datetime.timedelta(hours=cls.feature_padding_hours)
         t0 = train['timestamp'].iloc[0] - padding
         t1 = train['timestamp'].iloc[-1] + padding
         i0 = np.searchsorted(features.timestamp, t0, side='left')
         i1 = np.searchsorted(features.timestamp, t1, side='right')
         features = features.iloc[i0:i1]
         cls.add_obj_data(train, features)
-        # TODO: revamp so we use features name directly
-        # Rename so we can use features as obj:
-        mapping = {
-            'timestamp' : features.timestamp,
-            'speed' : features.speed_knots,
-            'course' : features.course_degrees,
-            'lat' : features.lat,
-            'lon' : features.lon,
-            'elevation' : features.elevation_m,
-            'distance' : features.distance_from_shore_km,
-            cls.data_source_lbl : features[cls.data_source_lbl],
-            }
-        if 'min_dt_min' in features.columns:
-            mapping['min_dt_min'] = features.min_dt_min
-        return pd.DataFrame(mapping)
+        return features
 
     @classmethod
     def load_data(cls, path, features):
         ssvid, train = util.load_training_data(path, cls.vessel_label, cls.data_source_lbl)
         return cls.merge_train_with_features(ssvid, train, features)
 
-
     @classmethod
     def add_obj_data(cls, obj, features):
-        obj[cls.data_target_lbl] = [(i in cls.data_true_vals) for i in obj[cls.data_source_lbl]]
-        _, raw_is_true = lin_interp(obj, cls.data_target_lbl, t=features.timestamp, 
-                                    mask=None, # Don't mask labels - use undropped labels for training 
-                                    func=lambda x: np.array(x) == 1) # is it a set
-        is_true_mask = raw_is_true > 0.5
+         # Don't mask labels - use non dropped labels for training 
+        unmasked_interp_info = util.setup_lin_interp(obj, t=features.timestamp)
+        is_true_mask = util.do_lin_interp(obj, unmasked_interp_info, cls.data_source_lbl,
+                            func=lambda v: [x in cls.data_true_vals for x in v]) > 0.5
+        is_defined_mask = util.do_lin_interp(obj, unmasked_interp_info, cls.data_source_lbl,
+                            func=lambda v: [x in cls.data_defined_vals for x in v]) > 0.5
 
-        obj['is_defined'] = [(i in cls.data_defined_vals) for i in obj[cls.data_source_lbl]]
-        _, raw_is_defined = lin_interp(obj, 'is_defined', t=features.timestamp, 
-                                      mask=None, # Don't mask labels - use undropped labels for training 
-                                      func=lambda x: np.array(x) == 1) # is it a set
-        is_defined_mask = raw_is_defined > 0.5
-
-        source = []
+        sources = []
         for is_defined, is_true in zip(is_defined_mask, is_true_mask):
             if is_defined:
                 if is_true:
-                    source.append(cls.data_true_vals[0])
+                    src = cls.data_true_vals[0]
                 else:
-                    source.append(cls.data_false_vals[0])
+                    src = cls.data_false_vals[0]
             else:
-                source.append(cls.data_undefined_vals[0])
-        features[cls.data_source_lbl] = source
+                src = cls.data_undefined_vals[0]
+            sources.append(src)
+
+        features[cls.data_source_lbl] = sources
 
 
     @classmethod
