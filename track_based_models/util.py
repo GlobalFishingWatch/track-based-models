@@ -212,41 +212,26 @@ def add_predictions(data, delta, times, predictions, label='inferred'):
         preds[i0:i1] = p
     data[label] = preds
 
-default_feature_mapping = {
-    'speed' : 'speed_knots',
-    'course' : 'course_degrees',
-    'lat' : 'lat',
-    'lon' : 'lon',
-    'elevation' : 'elevation_m',
-    'distance' : 'distance_from_shore_km'
-}
 
-def features_to_data(features, ssvid=None, t0=None, t1=None, 
-    mapping=default_feature_mapping):
+mdl.util.features_to_data(features, 
+            t0=t0.replace(tzinfo=None), t1=t1.replace(tzinfo=None))
+
+def features_to_data(features, t0=None, t1=None):
     print('running features_to_data')
-    if ssvid is not None or t0 is not None or t1 is not None:
+    if t0 is not None or t1 is not None:
         mask = 1
-        if ssvid is not None:
-            mask &= (features.id == ssvid)
         if t0 is not None:
             mask &= (features.timestamp >= t0)
         if t1 is not None:
             mask &= (features.timestamp <= t1)
         features = features[mask]
-
-    if features.dtypes['timestamp'] == np.dtype('<M8[ns]'):
-        timestamps = features.timestamp
     else:
-        timestamps = [dateutil.parser.parse(x) for x in data.timestamp] 
+        features = features.copy()
 
-    columns = {'timestamp' : timestamps}
-    for k, v in mapping.items():
-        print('mapping', k, v)
-        if isinstance(v, str):
-            columns[k] = features[v]
-        else:
-            columns[k] = v(features)
-    return pd.DataFrame(columns)
+    if features.dtypes['timestamp'] != np.dtype('<M8[ns]'):
+        features['timestamp'] = [dateutil.parser.parse(x) for x in data.timestamp] 
+
+    return features
 
 
 def load_training_data(path, vessel_label, data_source_lbl):     
