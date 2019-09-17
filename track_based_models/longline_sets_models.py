@@ -160,7 +160,6 @@ def build_features(obj, delta=None, interp_t=None,
 
     v = np.array(obj['speed'])
     # Replace missing speeds with arbitrary 3.5 (between setting and hauling)
-    # TODO: use implied speed instead
     v[np.isnan(v)] = 3.5
     obj['speed'] = v
     xi, speeds = lin_interp(obj, 'speed', delta=delta, t=interp_t, mask=mask)

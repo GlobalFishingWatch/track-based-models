@@ -112,7 +112,7 @@ class Model(SingleTrackDiffModel):
         y = keras.layers.UpSampling1D(size=3)(y)
         y = Dropout(0.1)(y)
         y = keras.layers.Concatenate()([y, 
-                            Cropping1D((38,38))(y0)]) # TODO make symmetric
+                            Cropping1D((38,38))(y0)]) 
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)

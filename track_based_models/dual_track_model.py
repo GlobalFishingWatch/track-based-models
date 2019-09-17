@@ -66,7 +66,6 @@ class DualTrackModel(BaseModel):
 
         v = np.array(obj['speed'])
         # Replace missing speeds with arbitrary 3.5 (between setting and hauling)
-        # TODO: use implied speed instead
         v[np.isnan(v)] = 3.5
         obj['speed'] = v
         xi, speeds = lin_interp(obj, 'speed', delta=delta, t=interp_t, mask=mask)
@@ -336,7 +335,6 @@ class DualTrackModel(BaseModel):
         return t, features
 
 # 
-    #TODO: rename to not have set in it
     def predict_from_data(self, data1, data2, max_deltas=0):
         predictions = []
         for angle in [77, 167, 180, 270]:

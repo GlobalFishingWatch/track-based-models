@@ -113,8 +113,7 @@ class BaseModel(object):
         x1 = self.preprocess(x)
         return self.model.predict(x1)[:, :, 0]
 
-    #TODO: rename to not have set in it
-    def predict_set_times(self, data, max_deltas=0):
+    def predict_from_data(self, data, max_deltas=0):
         predictions = []
         for angle in [77, 167, 180, 270]:
             features, times = self.create_features_and_times(data, angle=angle,
