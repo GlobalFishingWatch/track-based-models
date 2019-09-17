@@ -77,7 +77,7 @@ class SingleTrackModel(BaseModel):
         # Compute the interval between the interpolated point and the nearest 
         # point in the base data. The objective is to give the model an idea
         # how reliable a point is.
-        dts = util.delta_times(interp_info.seconds, interp_info.xp)
+        dts = util.delta_times(interp_info.interp_seconds, interp_info.raw_seconds)
         # If the base data is already interpolated, add the intervals
         if 'min_dt_min' in obj:
             dts += util.do_lin_interp(obj, interp_info, 'min_dt_min') * 60
@@ -95,8 +95,8 @@ class SingleTrackModel(BaseModel):
             defined = util.do_lin_interp(obj, unmasked_interp_info, cls.data_source_lbl,
                                 func=lambda v: [x in cls.data_defined_vals for x in v]) > 0.5
 
-        t = np.asarray(interp_info.timestamps)
-        return np.asarray(t), interp_info.seconds, y, label, defined
+        t = np.asarray(interp_info.raw_timestamps)
+        return np.asarray(t), interp_info.interp_seconds, y, label, defined
 
 
     AugmentedFeatures = namedtuple('AugmentedFeatures',
@@ -168,7 +168,7 @@ class SingleTrackModel(BaseModel):
     @classmethod
     def add_obj_data(cls, obj, features):
          # Don't mask labels - use non dropped labels for training 
-        unmasked_interp_info = util.setup_lin_interp(obj, t=features.timestamp)
+        unmasked_interp_info = util.setup_lin_interp(obj, timestamps=features.timestamp)
         is_true_mask = util.do_lin_interp(obj, unmasked_interp_info, cls.data_source_lbl,
                             func=lambda v: [x in cls.data_true_vals for x in v]) > 0.5
         is_defined_mask = util.do_lin_interp(obj, unmasked_interp_info, cls.data_source_lbl,

@@ -61,39 +61,41 @@ def as_datetime_seq(value):
     else:
         return value
 
-# TODO: rename xp field to be more meaningful
 InterpInfo = namedtuple('InterpInfo',
-    ['seconds', 'xp', 'mask', 'timestamps'])
+    ['interp_seconds', 'raw_seconds', 'mask', 'raw_timestamps'])
 
-def setup_lin_interp(obj, delta=None, t=None, mask=None):
-    if t is not None:
-        assert delta is None, 'only one of `delta` or `t` may be specified'
-        # convert timestamp to seconds
-        t = np.array([int((x - obj['timestamp'].iloc[0]).total_seconds()) for x in t])
+def setup_lin_interp(obj, delta=None, timestamps=None, mask=None):
     if delta is None:
-        assert t is not None, 'only one of `delta` or `t` may be specified'
+        assert timestamps is not None, 'only one of `delta` or `t` may be specified'
     else:
         assert delta % 1 == 0, 'delta must be a whole number of seconds'
-        
-    timestamps = as_datetime_seq(obj['timestamp'])
-    assert is_sorted(timestamps), 'data must be sorted'
-    if mask is not None:
-        timestamps = [x for (i, x) in enumerate(timestamps) if mask[i]]
-    ts0 = timestamps[0]
-    xp = np.array([int((ts - ts0).total_seconds()) for ts in timestamps])
-    a_smidgen = 0.1 # Added so that we capture the last point if it's on an even delta
-    if t is None:
-        t = np.arange(xp[0], xp[-1] + a_smidgen, delta)
 
-    return InterpInfo(seconds=t, xp=xp, mask=mask, timestamps=timestamps)
+    raw_timestamps = as_datetime_seq(obj['timestamp'])
+    assert is_sorted(raw_timestamps), 'data must be sorted'
+    if mask is not None:
+        raw_timestamps = [x for (i, x) in enumerate(raw_timestamps) if mask[i]]
+    ts0 = raw_timestamps[0]
+    raw_seconds = np.array([int((ts - ts0).total_seconds()) for ts in raw_timestamps])
+
+    if timestamps is not None:
+        assert delta is None, 'only one of `delta` or `timestamps` may be specified'
+        # convert timestamp to seconds
+        interp_seconds = np.array([int((x - obj['timestamp'].iloc[0]).total_seconds()) 
+                                        for x in timestamps])
+    else:
+        a_smidgen = 0.1 # Added so that we capture the last point if it's on an even delta
+        interp_seconds = np.arange(raw_seconds[0], raw_seconds[-1] + a_smidgen, delta)
+
+    return InterpInfo(interp_seconds=interp_seconds, raw_seconds=raw_seconds, 
+                      mask=mask, raw_timestamps=raw_timestamps)
 
 def do_lin_interp(obj, info, key, func=None):
-    fp = obj[key]
+    raw_data = obj[key]
     if info.mask is not None:
-        fp = [x for (i, x) in enumerate(fp) if info.mask[i]]
+        raw_data = [x for (i, x) in enumerate(raw_data) if info.mask[i]]
     if func is not None:
-        fp = func(fp)
-    return np.interp(info.seconds, info.xp, fp)
+        raw_data = func(raw_data)
+    return np.interp(info.interp_seconds, info.raw_seconds, raw_data)
 
 def do_degree_interp(obj, info, key):
     cos_yi = do_lin_interp(obj, info, key, func=cos_deg)
