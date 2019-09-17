@@ -273,7 +273,7 @@ class LoiteringModelV15(SingleTrackDiffModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = MaxPooling1D(4, strides=3)(y)
-        y = D#ropout(0.3)(y)
+        y = Dropout(0.3)(y)
 
         depth *= 2
         y = Conv1D(depth, 5)(y)
