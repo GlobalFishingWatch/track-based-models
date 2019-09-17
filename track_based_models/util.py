@@ -213,9 +213,6 @@ def add_predictions(data, delta, times, predictions, label='inferred'):
     data[label] = preds
 
 
-mdl.util.features_to_data(features, 
-            t0=t0.replace(tzinfo=None), t1=t1.replace(tzinfo=None))
-
 def features_to_data(features, t0=None, t1=None):
     print('running features_to_data')
     if t0 is not None or t1 is not None:
