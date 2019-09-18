@@ -169,7 +169,7 @@ class LoiteringModelV15(SingleTrackDiffModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = MaxPooling1D(4, strides=3)(y)
-        y = Dropout(0.3)(y)
+        y = Dropout(0.2)(y)
 
         depth *= 2
         y = Conv1D(depth, 5)(y)
@@ -180,7 +180,7 @@ class LoiteringModelV15(SingleTrackDiffModel):
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
         y = MaxPooling1D(4, strides=3)(y)
-        y = Dropout(0.5)(y)
+        y = Dropout(0.4)(y)
 
         depth *= 2
         y = Conv1D(depth, 4)(y)
@@ -200,7 +200,7 @@ class LoiteringModelV15(SingleTrackDiffModel):
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=3)(y)
-        y = Dropout(0.3)(y)
+        y = Dropout(0.4)(y)
         y = Concatenate()([y, 
                             keras.layers.Cropping1D((9,9))(y1)])
         y = Conv1D(depth, 2)(y)
@@ -213,7 +213,7 @@ class LoiteringModelV15(SingleTrackDiffModel):
 
         depth //= 2
         y = keras.layers.UpSampling1D(size=3)(y)
-        y = Dropout(0.1)(y)
+        y = Dropout(0.2)(y)
         y = keras.layers.Concatenate()([y, 
                             Cropping1D((38,38))(y0)])
         y = Conv1D(depth, 2)(y)
@@ -223,7 +223,7 @@ class LoiteringModelV15(SingleTrackDiffModel):
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization(scale=False, center=False, momentum=0.995)(y)
-        y = Dropout(0.1)(y)
+        y = Dropout(0.0)(y)
         y = Conv1D(1, 1)(y)
         y = Activation('sigmoid')(y)
 
