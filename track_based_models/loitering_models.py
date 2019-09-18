@@ -34,7 +34,7 @@ class LoiteringModelV15(SingleTrackDiffModel):
     delta = 10 * minute
     time_points = 81 # 72 = 12 hours, 120 = 20 hours, should be odd
     internal_time_points = 80
-    time_point_delta = 4
+    time_point_delta = 9
     window = time_points * delta
 
     base_filter_count = 32

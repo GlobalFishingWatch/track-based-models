@@ -113,20 +113,31 @@ class BaseModel(object):
         x1 = self.preprocess(x)
         return self.model.predict(x1)[:, :, 0]
 
+    def _predict_from_features(self, features):
+        base_shape = features[0].shape
+        for i in range(1, len(features)):
+            if features[i].shape != base_shape:
+                break
+        features_list = [features[:i], features[i:]]
+        chunks = []
+        for features in features_list:
+            if len(features) == 0:
+                continue
+            try:
+                chunks.extend(self.predict(features))
+            except:
+                logging.debug('prediction failed: \n' +
+                              'np.shape(features): {}\n'.format(np.shape(features))  
+                              )
+                raise
+        return np.concatenate(chunks)
+
     def predict_from_data(self, data, max_deltas=0):
         predictions = []
         for angle in [77, 167, 180, 270]:
             features, times = self.create_features_and_times(data, angle=angle,
                                         max_deltas=max_deltas)
-            try:
-                predictions_for_angle = np.concatenate(self.predict(features))
-                predictions.append(predictions_for_angle)
-            except:
-                logging.debug('prediction failed: \n' +
-                              'np.shape(features): {}\n'.format(np.shape(features)) +  
-                              'np.shape(data): {}\n'.format(np.shape(data))
-                              )
-                raise
+            predictions.append(self._predict_from_features(features))
         return times, np.mean(predictions, axis=0) > 0.5
 
     def augment_data_with_predictions(self, data):
