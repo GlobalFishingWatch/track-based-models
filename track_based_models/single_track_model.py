@@ -27,7 +27,7 @@ class SingleTrackModel(BaseModel):
     feature_padding_hours = 6.0
 
     def create_features_and_times(self, data, angle=77, max_deltas=0):
-        t, xi, y, label_i, defined_i = self.build_features(data, skip_label=True)
+        t, y, label_i, defined_i = self.build_features(data, skip_label=True)
         min_ndx = 0
         max_ndx = len(y) - self.time_points
         features = []
@@ -38,8 +38,9 @@ class SingleTrackModel(BaseModel):
             raw_features = y[i0:i1]
             features.append(self.cook_features(raw_features, angle=angle, noise=0)[0])
             i0 = i0 + max_deltas * self.time_point_delta + 1
-        times = t[self.time_points//2:-self.time_points//2]
+        times = t[self.time_points//2:-(self.time_points//2)]
         return features, times
+
 
     @classmethod
     def make_mask(cls, n_pts, keep_frac):
@@ -96,8 +97,7 @@ class SingleTrackModel(BaseModel):
             defined = util.do_lin_interp(obj, unmasked_interp_info, cls.data_source_lbl,
                                 func=lambda v: [x in cls.data_defined_vals for x in v]) > 0.5
 
-        t = np.asarray(interp_info.raw_timestamps)
-        return np.asarray(t), interp_info.interp_seconds, y, label, defined
+        return interp_info.interp_timestamps, y, label, defined
 
 
     AugmentedFeatures = namedtuple('AugmentedFeatures',
@@ -212,9 +212,9 @@ class SingleTrackModel(BaseModel):
         min_ndx = 0
         for i, data in enumerate(src_objs):
             for kf in keep_fracs:
-                t, x, y, label, dfnd = cls.build_features(data, skip_label=skip_label, keep_frac=kf)
+                t, y, label, dfnd = cls.build_features(data, skip_label=skip_label, keep_frac=kf)
                 
-                max_ndx = len(x) - window_pts
+                max_ndx = len(y) - window_pts
                 ndxs = []
                 for ndx in range(min_ndx, max_ndx + 1):
                     if dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].sum() >= lbl_pts / 2.0:
@@ -250,6 +250,11 @@ class SingleTrackModel(BaseModel):
 class SingleTrackDiffModel(SingleTrackModel):
     """SingleTrackModel that uses delta lat/lon
     """
+
+    def create_features_and_times(self, data, angle=77, max_deltas=0):
+        f, raw_t = SingleTrackModel.create_features_and_times(self, data, angle, max_deltas)
+        t = raw_t + datetime.timedelta(seconds=self.delta / 2.0)
+        return f, t
 
     def preprocess(self, x, fit=False):
         x0 = np.asarray(x) 

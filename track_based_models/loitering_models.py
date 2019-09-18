@@ -16,7 +16,7 @@ from .util import hour, minute
 from .base_model import hybrid_pool_layer_2, Normalizer
 from .single_track_model import SingleTrackDiffModel
 from . import util
-from .util import minute, lin_interp, cos_deg, sin_deg 
+from .util import minute
 
 
 from keras.engine import Layer, InputSpec

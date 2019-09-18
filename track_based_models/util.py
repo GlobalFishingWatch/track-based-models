@@ -62,7 +62,8 @@ def as_datetime_seq(value):
         return value
 
 InterpInfo = namedtuple('InterpInfo',
-    ['interp_seconds', 'raw_seconds', 'mask', 'raw_timestamps'])
+    ['interp_seconds', 'raw_seconds', 
+     'interp_timestamps', 'raw_timestamps', 'mask'])
 
 def setup_lin_interp(obj, delta=None, timestamps=None, mask=None):
     if delta is None:
@@ -85,9 +86,14 @@ def setup_lin_interp(obj, delta=None, timestamps=None, mask=None):
     else:
         a_smidgen = 0.1 # Added so that we capture the last point if it's on an even delta
         interp_seconds = np.arange(raw_seconds[0], raw_seconds[-1] + a_smidgen, delta)
+    interp_timestamps = [raw_timestamps[0] + datetime.timedelta(seconds=int(x)) 
+                            for x in interp_seconds]
 
-    return InterpInfo(interp_seconds=interp_seconds, raw_seconds=raw_seconds, 
-                      mask=mask, raw_timestamps=raw_timestamps)
+
+    return InterpInfo(interp_seconds=interp_seconds, raw_seconds=raw_seconds,  
+                      raw_timestamps=np.array(raw_timestamps), 
+                      interp_timestamps=np.array(interp_timestamps),
+                      mask=mask)
 
 def do_lin_interp(obj, info, key, func=None):
     raw_data = obj[key]
@@ -214,7 +220,6 @@ def add_predictions(data, delta, times, predictions, label='inferred'):
 
 
 def features_to_data(features, t0=None, t1=None):
-    print('running features_to_data')
     if t0 is not None or t1 is not None:
         mask = 1
         if t0 is not None:
