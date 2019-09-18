@@ -71,7 +71,7 @@ class SingleTrackModel(BaseModel):
  
         n_pts = len(obj['lat'])
         if n_pts == 0:
-            return [], [], [], [], []
+            return [], [], [], []
 
         mask = cls.make_mask(n_pts, keep_frac)
         interp_info = util.setup_lin_interp(obj, delta=cls.delta, mask=mask)
