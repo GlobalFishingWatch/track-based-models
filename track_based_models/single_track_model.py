@@ -259,8 +259,9 @@ class SingleTrackDiffModel(SingleTrackModel):
     """
 
     def create_features_and_times(self, data, angle=77, max_deltas=0):
-        f, raw_t = SingleTrackModel.create_features_and_times(self, data, angle, max_deltas)
-        t = raw_t + datetime.timedelta(seconds=self.delta / 2.0)
+        f, t = SingleTrackModel.create_features_and_times(self, data, angle, max_deltas)
+        if len(t):
+            t = t + datetime.timedelta(seconds=self.delta / 2.0)
         return f, t
 
     def preprocess(self, x, fit=False):
