@@ -137,7 +137,8 @@ class BaseModel(object):
         for angle in [77, 167, 180, 270]:
             features, times = self.create_features_and_times(data, angle=angle,
                                         max_deltas=max_deltas)
-            predictions.append(self._predict_from_features(features))
+            if len(features):
+                predictions.append(self._predict_from_features(features))
         return times, np.mean(predictions, axis=0) > 0.5
 
     def augment_data_with_predictions(self, data):
