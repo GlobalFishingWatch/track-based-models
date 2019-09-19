@@ -139,7 +139,11 @@ class BaseModel(object):
                                         max_deltas=max_deltas)
             if len(features):
                 predictions.append(self._predict_from_features(features))
-        return times, np.mean(predictions, axis=0) > 0.5
+        if len(predictions) == 0:
+            predictions = np.array([], dtype=bool)
+        else:
+            predictions = np.mean(predictions, axis=0) > 0.5
+        return times, predictions
 
     def augment_data_with_predictions(self, data):
         """Add predictions to data
