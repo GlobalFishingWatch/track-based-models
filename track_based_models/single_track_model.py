@@ -26,24 +26,23 @@ class SingleTrackModel(BaseModel):
 
     feature_padding_hours = 6.0
 
+
     def create_features_and_times(self, data, angle=77, max_deltas=0):
         t, y, label_i, defined_i = self.build_features(data, skip_label=True)
-        # First get all big chunks
+        # First get all large chunks
         max_ndx = len(y) - (self.time_points + max_deltas * self.time_point_delta)
         features = []
         times = []
         i0 = 0
         while i0 <= max_ndx:
             i1 = i0 + self.time_points + max_deltas * self.time_point_delta
-            raw_features = y[i0:i1]
-            features.append(self.cook_features(raw_features, angle=angle, noise=0)[0])
+            features.append(self.cook_features(y[i0:i1], angle=angle, noise=0)[0])
             i0 = i0 + max_deltas * self.time_point_delta + 1
         # Now get all small chunks
         max_ndx = len(y) - self.time_points
         while i0 <= max_ndx:
             i1 = i0 + self.time_points
-            raw_features = y[i0:i1]
-            features.append(self.cook_features(raw_features, angle=angle, noise=0)[0])
+            features.append(self.cook_features(y[i0:i1], angle=angle, noise=0)[0])
             i0 = i0 + 1
         times = t[self.time_points//2:-(self.time_points//2)]
         return features, times
@@ -144,13 +143,18 @@ class SingleTrackModel(BaseModel):
     def cook_features(cls, raw_features, angle=None, noise=None):
         angle, f = cls._augment_features(raw_features, angle, noise)
 
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(f.depth))
+        depth = np.maximum(f.depth, 0)
+        logged_depth = np.log(1 + depth) + 40 * noise
+
         return np.transpose([f.speed,
-                             np.cos(np.radians(f.angle_feature)), 
-                             np.sin(np.radians(f.angle_feature)),
+                             f.speed * np.cos(np.radians(f.angle_feature)), 
+                             f.speed * np.sin(np.radians(f.angle_feature)),
                              f.dir_a,
                              f.dir_b,
                              np.exp(-f.delta_time),
-                             f.depth, 
+                             logged_depth, 
                              ]), angle
 
     @classmethod
