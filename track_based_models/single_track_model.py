@@ -28,7 +28,7 @@ class SingleTrackModel(BaseModel):
 
 
     def create_features_and_times(self, data, angle=77, max_deltas=0):
-        t, y, label_i, defined_i = self.build_features(data, skip_label=True)
+        t, y, _, _ = self.build_features(data, skip_label=True)
         # First get all large chunks
         max_ndx = len(y) - (self.time_points + max_deltas * self.time_point_delta)
         features = []
@@ -218,7 +218,9 @@ class SingleTrackModel(BaseModel):
         labels = []
         defined = []
         window_pts = window // delta
+        assert window_pts == cls.time_points + extra_time_deltas * cls.time_point_delta
         lbl_pts = label_window // delta
+        assert lbl_pts == 1 + extra_time_deltas * cls.time_point_delta
         lbl_offset = (window_pts - lbl_pts) // 2
         min_ndx = 0
         for i, data in enumerate(src_objs):
@@ -254,7 +256,7 @@ class SingleTrackModel(BaseModel):
                             lbl_pts, -1)
                         defined.append((windowed_defined.mean(axis=-1) > 0.5) &
                             ((windowed_labels.mean(axis=-1) < 0.3) | 
-                                (windowed_labels.mean(axis=-1) > 0.7)))
+                             (windowed_labels.mean(axis=-1) > 0.7)))
         return times, np.array(features), np.array(labels), np.array(targets), np.array(defined) 
 
 
