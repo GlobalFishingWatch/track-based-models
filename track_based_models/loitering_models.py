@@ -273,3 +273,106 @@ class LoiteringModelV16(SingleTrackDiffModel):
         model.compile(optimizer=opt, loss='binary_crossentropy', 
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
+
+
+
+
+class LoiteringModelV18(SingleTrackDiffModel):
+    
+    delta = 10 * minute
+    time_points = 91 # 72 = 12 hours, 120 = 20 hours, should be odd
+    internal_time_points = 90
+    time_point_delta = 1
+    window = time_points * delta
+
+    base_filter_count = 32
+
+    data_source_lbl='transshiping' 
+    data_target_lbl='is_target_encounter'
+    data_undefined_vals = (0, 3)
+    data_defined_vals = (1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (2,)
+    data_far_time = 3 * 10 * minute
+    
+    vessel_label = 'position_data_reefer'
+
+    feature_padding_hours = 12.0
+
+    def __init__(self, width=None):
+        
+        self.normalizer = None
+        
+        d1 = depth = self.base_filter_count
+        
+        input_layer = Input(shape=(width, 7))
+        y = input_layer
+        y = Conv1D(depth, 2, activation='relu')(y)
+
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.05)(y)
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = BatchNormalization(scale=False)(y)
+        y = y0 = Dropout(0.05)(y)
+
+        y = Conv1D(2 * depth, 3, activation='relu', dilation_rate=2)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.1)(y)
+        y = Conv1D(2 * depth, 3, activation='relu', dilation_rate=2)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = y1 = Dropout(0.1)(y)
+
+        y = Conv1D(4 * depth, 3, activation='relu', dilation_rate=4)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.15)(y)
+        y = Conv1D(4 * depth, 3, activation='relu', dilation_rate=4)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = y2 = Dropout(0.15)(y)
+
+        y = Conv1D(8 * depth, 3, activation='relu', dilation_rate=8)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.2)(y)
+        y = Conv1D(8 * depth, 3, activation='relu', dilation_rate=8)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.2)(y)
+
+        y = Concatenate()([y, Cropping1D((16, 16))(y2)]) 
+        y = Conv1D(4 * depth, 3, activation='relu', dilation_rate=4)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.15)(y)
+        y = Conv1D(4 * depth, 3, activation='relu', dilation_rate=4)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.15)(y)
+
+        y = Concatenate()([y, Cropping1D((32, 32))(y1)]) 
+        y = Conv1D(2 * depth, 3, activation='relu', dilation_rate=2)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.1)(y)
+        y = Conv1D(2 * depth, 3, activation='relu', dilation_rate=2)(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.1)(y)
+
+        y = Concatenate()([y, Cropping1D((40, 40))(y0)]) 
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.05)(y)
+        y = Conv1D(depth, 3, activation='relu')(y)
+        y = BatchNormalization(scale=False)(y)
+        y = Dropout(0.05)(y)
+
+        # 1 -> 5 -> 13 -> 29 -> 61 -> 77 -> 85 -> 89 -> 90
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        opt = optimizers.Nadam(lr=0.002, schedule_decay=0.9)
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model 
+
+ 

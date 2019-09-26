@@ -118,16 +118,16 @@ class SingleTrackModel(BaseModel):
         radians = np.radians(angle)
         angle_feat = angle + (90 - raw_features[:, 1])
         
-        ndx = np.random.randint(len(raw_features))
-        lat0 = raw_features[ndx, 2]
-        lon0 = raw_features[ndx, 3]
         lat = raw_features[:, 2] 
         lon = raw_features[:, 3] 
-        scale = np.cos(np.radians(lat))
-        d1 = lat - lat0
-        d2 = (lon - lon0) * scale
+        latavg = 0.5 * (lat[1:] + lat[:-1])
+        scale = np.cos(np.radians(latavg))
+        d1 = lat[1:] - lat[:-1]
+        d2 = ((lon[1:] - lon[:-1] + 180) % 360 - 180) * scale
         dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
         dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
+        dir_a = np.concatenate([dir_a[:1], dir_a], axis=0)
+        dir_b = np.concatenate([dir_b[:1], dir_b], axis=0)
         depth = -raw_features[:, 5]
         distance = raw_features[:, 6]
 
@@ -274,7 +274,7 @@ class SingleTrackDiffModel(SingleTrackModel):
         x0 = np.asarray(x) 
         try:
             x = 0.5 * (x0[:, 1:, :] + x0[:, :-1, :])
-            x[:, :, 3:5] = x0[:, 1:, 3:5] - x0[:, :-1, 3:5]
+            x[:, :, 3:5] = x0[:, 1:, 3:5]
         except:
             logging.error('x is wrong shape: {}'.format(x0.shape))
             raise
