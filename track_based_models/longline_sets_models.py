@@ -285,4 +285,23 @@ def load_data(path, delta, skip_label=False, keep_fracs=[1], features=None,
         yield (t, x, y, label, is_defined)
     
 
+from .loitering_models import LoiteringModelV16 as ModelBase
+
+class LonglineSetsModelV2(ModelBase):
+    delta = 20 * 60
+    time_points = 93 # 72 = 12 hours, 120 = 20 hours, should be odd
+    internal_time_points = 92
+    window = time_points * delta
+    
+    base_filter_count = 8
+    
+    vessel_label = None
+    data_source_lbl='fishing' 
+    data_target_lbl='setting'
+    data_undefined_vals = (0,)
+    data_defined_vals = (1, 2, 3)
+    data_true_vals = (1,)
+    data_false_vals = (2, 3)
+    
+    feature_padding_hours = 24.0
 

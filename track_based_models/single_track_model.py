@@ -234,6 +234,8 @@ class SingleTrackModel(BaseModel):
                         ndxs.append(ndx)
                 if not ndxs:
                     print("skipping object", i, "because it is too short")
+                    print(len(dfnd), np.sum(dfnd), 
+                        sorted(set(label)))
                     continue
                 for ss in range(subsamples):
                     ndx = np.random.choice(ndxs)                

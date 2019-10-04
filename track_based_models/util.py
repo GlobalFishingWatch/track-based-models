@@ -38,6 +38,7 @@ def load_json_data(path, vessel_label):
         obj = json.loads(f.read())
     if vessel_label is not None:
         obj = obj[vessel_label]
+    obj['mmsi'] = str(obj['mmsi'])
     obj['raw_timestamps'] = obj['timestamps']
     obj['timestamps'] = obj['timestamp'] = [dateutil.parser.parse(x) for x in obj['timestamps']]
     mask = np.ones_like(obj['timestamp'], dtype=bool)
