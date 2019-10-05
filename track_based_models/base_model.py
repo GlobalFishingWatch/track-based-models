@@ -115,7 +115,8 @@ class BaseModel(object):
 
     def _predict_from_features(self, features):
         base_shape = features[0].shape
-        for i in range(1, len(features)):
+        # Start from zero to ensure `i` always set
+        for i in range(0, len(features)):
             if features[i].shape != base_shape:
                 break
         features_list = [features[:i], features[i:]]
