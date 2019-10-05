@@ -132,7 +132,7 @@ class BaseModel(object):
                 raise
         return np.concatenate(chunks)
 
-    def predict_from_data(self, data, max_deltas=0):
+    def _predict_from_data(self, data, max_deltas=0):
         predictions = []
         for angle in [77, 167, 180, 270]:
             features, times = self.create_features_and_times(data, angle=angle,
@@ -144,6 +144,10 @@ class BaseModel(object):
         else:
             predictions = np.mean(predictions, axis=0) > 0.5
         return times, predictions
+
+    def predict_from_data(self, data, target_width=1):
+        max_deltas = int(round((target_width - 1) / self.time_point_delta))
+        return self._predict_from_data(data, max_deltas)
 
     def augment_data_with_predictions(self, data):
         """Add predictions to data
