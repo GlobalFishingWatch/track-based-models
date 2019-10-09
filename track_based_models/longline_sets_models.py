@@ -289,7 +289,7 @@ from .loitering_models import LoiteringModelV16 as ModelBase
 
 class LonglineSetsModelV2(ModelBase):
     delta = 20 * 60
-    time_points = 93 # 72 = 12 hours, 120 = 20 hours, should be odd
+    time_points = 93 # 72 = 24 hours
     internal_time_points = 92
     window = time_points * delta
     
