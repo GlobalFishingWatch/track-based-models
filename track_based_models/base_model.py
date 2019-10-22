@@ -93,14 +93,15 @@ class BaseModel(object):
         return cls._mdl_cache[path]
 
 
-    def preprocess(self, x):
+    def preprocess(self, x, fit=False):
         x = np.asarray(x) 
-        return x
+        if fit:
+            self.normalizer = Normalizer().fit(x)
+        return self.normalizer.norm(x)
     
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, validation_split=0, validation_data=0,
 			verbose=1):
-        self.normalizer = Normalizer().fit(x)
-        x1 = self.preprocess(x)
+        x1 = self.preprocess(x, fit=True)
         l1 = np.asarray(labels).reshape((len(labels), 1))
         if validation_data not in (None, 0):
             a, b, c = validation_data

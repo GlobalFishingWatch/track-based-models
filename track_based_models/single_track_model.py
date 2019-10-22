@@ -170,6 +170,7 @@ class SingleTrackModel(BaseModel):
         i1 = np.searchsorted(features.timestamp, t1, side='right')
         features = features.iloc[i0:i1]
         cls.add_obj_data(train, features)
+        # TODO: ensure padded region is undefined
         return features
 
     @classmethod
@@ -285,9 +286,9 @@ class SingleTrackDiffModel(SingleTrackModel):
         return self.normalizer.norm(x)
 
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
-            validation_split=0, validation_data=0, verbose=1, callbacks=[]):
-        self.normalizer = Normalizer().fit(x)
-        x1 = self.preprocess(x)
+            validation_split=0, validation_data=0, verbose=1, callbacks=[],
+            initial_epoch=0):
+        x1 = self.preprocess(x, fit=True)
         l1 = np.asarray(labels).reshape(len(labels), -1, 1)
         if validation_data not in (None, 0):
             a, b, c = validation_data
@@ -296,4 +297,5 @@ class SingleTrackDiffModel(SingleTrackModel):
                         sample_weight=sample_weight,
                       validation_split=validation_split, 
                       validation_data=validation_data,
+                      initial_epoch=initial_epoch,
                       verbose=verbose, callbacks=callbacks)
