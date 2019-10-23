@@ -5,7 +5,7 @@ import numpy as np
 import os
 import pandas as pd
 from . import util
-from .util import minute
+from .util import minute, hour
 from .base_model import BaseModel, Normalizer
 
 class SingleTrackModel(BaseModel):
@@ -24,8 +24,14 @@ class SingleTrackModel(BaseModel):
 
     vessel_label = None
 
-    feature_padding_hours = 6.0
 
+    @classmethod
+    def get_feature_padding_hours(cls):
+        return (cls.time_points - 1) // 2 * cls.delta / hour
+
+    @property
+    def feature_padding_hours(self):
+        return self.get_feature_padding_hours()
 
     def create_features_and_times(self, data, angle=77, max_deltas=0):
         t, y, _, _ = self.build_features(data, skip_label=True)
@@ -148,11 +154,13 @@ class SingleTrackModel(BaseModel):
         depth = np.maximum(f.depth, 0)
         logged_depth = np.log(1 + depth) + 40 * noise
 
+        dt = cls.delta / hour
+
         return np.transpose([f.speed,
-                             f.speed * np.cos(np.radians(f.angle_feature)), 
-                             f.speed * np.sin(np.radians(f.angle_feature)),
-                             f.dir_a,
-                             f.dir_b,
+                             f.speed * np.cos(np.radians(f.angle_feature)) * dt, 
+                             f.speed * np.sin(np.radians(f.angle_feature)) * dt,
+                             f.dir_a * 60,
+                             f.dir_b * 60,
                              np.exp(-f.delta_time),
                              logged_depth, 
                              ]), angle
@@ -163,7 +171,7 @@ class SingleTrackModel(BaseModel):
         mask = (features.ssvid == ssvid)
         features = features[mask]
         features = features.sort_values(by='timestamp')
-        padding = datetime.timedelta(hours=cls.feature_padding_hours)
+        padding = datetime.timedelta(hours=cls.get_feature_padding_hours())
         t0 = train['timestamp'].iloc[0] - padding
         t1 = train['timestamp'].iloc[-1] + padding
         i0 = np.searchsorted(features.timestamp, t0, side='left')
@@ -284,6 +292,7 @@ class SingleTrackDiffModel(SingleTrackModel):
         if fit:
             self.normalizer = Normalizer().fit(x)
         return self.normalizer.norm(x)
+        return x
 
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
             validation_split=0, validation_data=0, verbose=1, callbacks=[],

@@ -150,8 +150,6 @@ class LoiteringModelV16(SingleTrackDiffModel):
     
     vessel_label = 'position_data_reefer'
 
-    feature_padding_hours = 12.0
-
     def __init__(self, width=None):
         
         self.normalizer = None
