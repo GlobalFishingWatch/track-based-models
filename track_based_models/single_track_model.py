@@ -68,7 +68,7 @@ class SingleTrackModel(BaseModel):
         return mask
 
     @classmethod
-    def build_features(cls, obj, skip_label=False, keep_frac=1.0):
+    def build_features(cls, obj, skip_label=False, keep_frac=1.0, offset=0):
  
         assert (np.isnan(obj.speed_knots).sum() == 
                 np.isnan(obj.course_degrees).sum() == 0), (
@@ -79,7 +79,8 @@ class SingleTrackModel(BaseModel):
             return [], [], [], []
 
         mask = cls.make_mask(n_pts, keep_frac)
-        interp_info = util.setup_lin_interp(obj, delta=cls.delta, mask=mask)
+        interp_info = util.setup_lin_interp(obj, delta=cls.delta, mask=mask,
+                            offset_seconds=offset)
 
         speeds = util.do_lin_interp(obj, interp_info, 'speed_knots')
         courses = util.do_degree_interp(obj, interp_info, 'course_degrees')
@@ -210,15 +211,16 @@ class SingleTrackModel(BaseModel):
 
 
     @classmethod
-    def generate_inputs(cls, src_objs, min_samples, seed=888, 
-                    skip_label=False, keep_fracs=(1,), noise=None, extra_time_deltas=0):
+    def generate_inputs(cls, src_objs, samples_per_obj, seed=888, 
+                    skip_label=False, keep_fracs=(1,), noise=None, extra_time_deltas=0,
+                    offsets=[0]):
         delta = cls.delta
         window = cls.window + extra_time_deltas * cls.time_point_delta * delta
         label_window = delta * (1 + extra_time_deltas * cls.time_point_delta)
         assert window % delta == 0, 'delta must evenly divide window'
         # Weight so that sets with multiple classification get sqrt(n) more representation
         # Since they have some extra information (n is the number of classifications)
-        subsamples = int(round(min_samples / np.sqrt(len(src_objs))))
+        subsamples = int(round(samples_per_obj / len(keep_fracs) / len(offsets)))
         # Set seed for reproducibility
         np.random.seed(seed)
         times = []
@@ -234,40 +236,42 @@ class SingleTrackModel(BaseModel):
         min_ndx = 0
         for i, data in enumerate(src_objs):
             for kf in keep_fracs:
-                t, y, label, dfnd = cls.build_features(data, skip_label=skip_label, keep_frac=kf)
-                
-                max_ndx = len(y) - window_pts
-                ndxs = []
-                for ndx in range(min_ndx, max_ndx + 1):
-                    if dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].sum() >= lbl_pts / 2.0:
-                        ndxs.append(ndx)
-                if not ndxs:
-                    print("skipping object", i, "because it is too short")
-                    print(len(dfnd), np.sum(dfnd), 
-                        sorted(set(label)))
-                    continue
-                for ss in range(subsamples):
-                    ndx = np.random.choice(ndxs)                
-                    t_chunk = t[ndx:ndx+window_pts]
-                    f_chunk, _ = cls.cook_features(y[ndx:ndx+window_pts], noise=noise)
-                    times.append(t_chunk) 
-                    features.append(f_chunk)
-                    if skip_label:
-                        targets.append(None)
-                        labels.append(None)
-                        defined.append(None)
-                    else:
-                        # print(label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].shape, 
-                        #     lbl_pts)
-                        targets.append(label[ndx:ndx+window_pts]) 
-                        windowed_labels = label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
-                            lbl_pts, -1)
-                        labels.append(windowed_labels.mean(axis=-1) > 0.5)
-                        windowed_defined = dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
-                            lbl_pts, -1)
-                        defined.append((windowed_defined.mean(axis=-1) > 0.5) &
-                            ((windowed_labels.mean(axis=-1) < 0.3) | 
-                             (windowed_labels.mean(axis=-1) > 0.7)))
+                for dt in offsets:
+                    t, y, label, dfnd = cls.build_features(data, skip_label=skip_label, 
+                                                            keep_frac=kf, offset=dt)
+                    
+                    max_ndx = len(y) - window_pts
+                    ndxs = []
+                    for ndx in range(min_ndx, max_ndx + 1):
+                        if dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].sum() >= lbl_pts / 2.0:
+                            ndxs.append(ndx)
+                    if not ndxs:
+                        print("skipping object", i, "because it is too short")
+                        print(len(dfnd), np.sum(dfnd), 
+                            sorted(set(label)))
+                        continue
+                    for ss in range(subsamples):
+                        ndx = np.random.choice(ndxs)                
+                        t_chunk = t[ndx:ndx+window_pts]
+                        f_chunk, _ = cls.cook_features(y[ndx:ndx+window_pts], noise=noise)
+                        times.append(t_chunk) 
+                        features.append(f_chunk)
+                        if skip_label:
+                            targets.append(None)
+                            labels.append(None)
+                            defined.append(None)
+                        else:
+                            # print(label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].shape, 
+                            #     lbl_pts)
+                            targets.append(label[ndx:ndx+window_pts]) 
+                            windowed_labels = label[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
+                                lbl_pts, -1)
+                            labels.append(windowed_labels.mean(axis=-1) > 0.5)
+                            windowed_defined = dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].reshape(
+                                lbl_pts, -1)
+                            defined.append((windowed_defined.mean(axis=-1) > 0.5) &
+                                ((windowed_labels.mean(axis=-1) < 0.3) | 
+                                 (windowed_labels.mean(axis=-1) > 0.7)))
         return times, np.array(features), np.array(labels), np.array(targets), np.array(defined) 
 
 

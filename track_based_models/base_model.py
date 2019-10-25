@@ -144,7 +144,7 @@ class BaseModel(object):
         if len(predictions) == 0:
             predictions = np.array([], dtype=bool)
         else:
-            predictions = np.mean(predictions, axis=0) > 0.5
+            predictions = np.mean(predictions, axis=0)
         return times, predictions
 
     def predict_from_data(self, data, target_width=1):

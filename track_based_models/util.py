@@ -66,7 +66,7 @@ InterpInfo = namedtuple('InterpInfo',
     ['interp_seconds', 'raw_seconds', 
      'interp_timestamps', 'raw_timestamps', 'mask'])
 
-def setup_lin_interp(obj, delta=None, timestamps=None, mask=None):
+def setup_lin_interp(obj, delta=None, timestamps=None, mask=None, offset_seconds=0):
     if delta is None:
         assert timestamps is not None, 'only one of `delta` or `t` may be specified'
     else:
@@ -86,7 +86,7 @@ def setup_lin_interp(obj, delta=None, timestamps=None, mask=None):
                                         for x in timestamps])
     else:
         a_smidgen = 0.1 # Added so that we capture the last point if it's on an even delta
-        interp_seconds = np.arange(raw_seconds[0], raw_seconds[-1] + a_smidgen, delta)
+        interp_seconds = np.arange(raw_seconds[0] + offset_seconds, raw_seconds[-1] + a_smidgen, delta)
     interp_timestamps = [raw_timestamps[0] + datetime.timedelta(seconds=int(x)) 
                             for x in interp_seconds]
 
