@@ -132,9 +132,9 @@ class LoiteringModelV15(SingleTrackDiffModel):
 class LoiteringModelV15D(SingleTrackDiffModel):
     
     delta = 10 * minute
-    time_points = 81 # 72 = 12 hours, 120 = 20 hours, should be odd
-    internal_time_points = 80
-    time_point_delta = 9
+    time_points = 91 # 72 = 12 hours, 120 = 20 hours, should be odd
+    internal_time_points = 90
+    time_point_delta = 1
     window = time_points * delta
 
     base_filter_count = 32
@@ -149,13 +149,13 @@ class LoiteringModelV15D(SingleTrackDiffModel):
     
     vessel_label = 'position_data_reefer'
 
-    def __init__(self):
+    def __init__(self, width=None):
         
         self.normalizer = None
         
         d1 = depth = self.base_filter_count
         
-        input_layer = Input(shape=(None, 7))
+        input_layer = Input(shape=(width, 7))
         y = input_layer
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
@@ -175,7 +175,7 @@ class LoiteringModelV15D(SingleTrackDiffModel):
         y = Conv1D(depth, 3, dilation_rate=3)(y)
         y = ReLU()(y)
         y = BatchNormalization()(y)
-        y = MaxPooling1D(4, strides=1)(y)
+        y = MaxPooling1D(12, strides=1)(y)
         y = Dropout(0.2)(y)
 
         depth *= 2
@@ -188,13 +188,9 @@ class LoiteringModelV15D(SingleTrackDiffModel):
         y = BatchNormalization()(y)
         y = Dropout(0.3)(y)
 
-        # Above is 1->6->19->(21)->25->76->(79)->80 (+1 for delta)
-        # Below is 4 * k - 3, where k is center size
-        # Above is 1->5->(21)->25->101->[(103)]-> 105
-
         depth //= 2
         y = Dropout(0.25)(y)
-        y = Concatenate()([y, keras.layers.Cropping1D((9,9))(y1)])
+        y = Concatenate()([y, keras.layers.Cropping1D((31,31))(y1)])
         y = Conv1D(depth, 2, dilation_rate=3)(y)
         y = ReLU()(y)
         y = BatchNormalization()(y)
@@ -205,7 +201,7 @@ class LoiteringModelV15D(SingleTrackDiffModel):
 
         depth //= 2
         y = Dropout(0.15)(y)
-        y = keras.layers.Concatenate()([y, Cropping1D((38,38))(y0)])
+        y = keras.layers.Concatenate()([y, Cropping1D((43,43))(y0)])
         y = Conv1D(depth, 2)(y)
         y = ReLU()(y)
         y = BatchNormalization()(y)
