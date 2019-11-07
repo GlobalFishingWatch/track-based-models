@@ -140,6 +140,120 @@ class LoiteringModelVD1(SingleTrackDiffModel):
             metrics=["accuracy"], sample_weight_mode="temporal")
         self.model = model  
 
+class LoiteringModelVD2(SingleTrackDiffModel):
+    
+    delta = 5 * minute
+    time_points = 141 # 144 = 12 hours,
+    internal_time_points = 140
+    time_point_delta = 1
+    window = time_points * delta
+
+    base_filter_count = 64
+
+    data_source_lbl='transshiping' 
+    data_target_lbl='is_target_encounter'
+    data_undefined_vals = (0, 3)
+    data_defined_vals = (1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (2,)
+    data_far_time = 3 * 10 * minute
+    
+    vessel_label = 'position_data_reefer'
+
+    def __init__(self, width=None):
+        
+        self.normalizer = None
+        
+        d1 = depth = self.base_filter_count
+        pool_width = 3
+        dilation = 1
+
+        input_layer = Input(shape=(width, 7))
+        y = input_layer
+        y = Conv1D(depth, 4)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+        y = Conv1D(depth, 3)(y)
+        y = ReLU()(y)
+        y0 = y = BatchNormalization()(y)
+        y = MaxPooling1D(pool_width, strides=1)(y)
+
+        depth = depth * 3 // 2
+        pool_width *= 2
+        dilation *= 2
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y1 = y = BatchNormalization()(y)
+        y = MaxPooling1D(pool_width, strides=1)(y)
+
+        depth = depth * 3 // 2
+        pool_width *= 2
+        dilation *= 2
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y2 = y = BatchNormalization()(y)
+        y = MaxPooling1D(pool_width, strides=1)(y)
+
+        depth = depth * 3 // 2
+        dilation *= 2
+        y = Conv1D(depth, 5, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+        y = Conv1D(depth, 5, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+
+
+
+        depth = depth * 2 // 3 
+        dilation //= 2
+        y = Concatenate()([y, keras.layers.Cropping1D((38,37))(y2)])
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+
+        depth = depth * 2 // 3 
+        dilation //= 2
+        y = Concatenate()([y, keras.layers.Cropping1D((56,56))(y1)])
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+
+        depth = depth * 2 // 3 
+        dilation //= 2
+        y = Concatenate()([y, keras.layers.Cropping1D((65,65))(y0)])
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+        y = Conv1D(depth, 3, dilation_rate=dilation)(y)
+        y = ReLU()(y)
+        y = BatchNormalization()(y)
+
+        y = Dropout(0.5)(y)
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        opt = optimizers.Nadam()
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
 
 
 class LoiteringModelV15(SingleTrackDiffModel):
