@@ -43,6 +43,7 @@ class SingleTrackModel(BaseModel):
         while i0 <= max_ndx:
             i1 = i0 + self.time_points + max_deltas * self.time_point_delta
             features.append(self.cook_features(y[i0:i1], angle=angle, noise=0)[0])
+            times.extend(t[i0 + self.time_points//2:i1-self.time_points//2])
             i0 = i0 + max_deltas * self.time_point_delta + 1
         # Now get all small chunks
         max_ndx = len(y) - self.time_points
@@ -50,7 +51,8 @@ class SingleTrackModel(BaseModel):
             i1 = i0 + self.time_points
             features.append(self.cook_features(y[i0:i1], angle=angle, noise=0)[0])
             i0 = i0 + 1
-        times = t[self.time_points//2:-(self.time_points//2)]
+        times = np.asarray(times)
+        assert np.alltrue(t[self.time_points//2:-(self.time_points//2)] == times)
         return features, times
 
 
@@ -113,58 +115,7 @@ class SingleTrackModel(BaseModel):
         return interp_info.interp_timestamps, y, label, defined
 
 
-    AugmentedFeatures = namedtuple('AugmentedFeatures',
-        ['speed', 'delta_time', 'angle_feature', 
-        'dir_a', 'dir_b', 'depth', 'distance'])
 
-    @classmethod
-    def _augment_features(cls, raw_features, angle=None, noise=None):
-        """Perform the augmention portion of cook features"""
-        speed = raw_features[:, 0]
-        angle = np.random.uniform(0, 360) if (angle is None) else angle
-        radians = np.radians(angle)
-        angle_feat = angle + (90 - raw_features[:, 1])
-        
-        lat = raw_features[:, 2] 
-        lon = raw_features[:, 3] 
-        latavg = 0.5 * (lat[1:] + lat[:-1])
-        scale = np.cos(np.radians(latavg))
-        d1 = lat[1:] - lat[:-1]
-        d2 = ((lon[1:] - lon[:-1] + 180) % 360 - 180) * scale
-        dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
-        dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
-        dir_a = np.concatenate([dir_a[:1], dir_a], axis=0)
-        dir_b = np.concatenate([dir_b[:1], dir_b], axis=0)
-        depth = -raw_features[:, 5]
-        distance = raw_features[:, 6]
-
-        if noise is None:
-            noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
-        delta_time = np.maximum(raw_features[:, 4] / 
-                                float(cls.data_far_time) + noise, 0)
-
-        return angle, cls.AugmentedFeatures(speed, delta_time, angle_feat, 
-                        dir_a, dir_b, depth, distance)
-
-    @classmethod
-    def cook_features(cls, raw_features, angle=None, noise=None):
-        angle, f = cls._augment_features(raw_features, angle, noise)
-
-        if noise is None:
-            noise = np.random.normal(0, .05, size=len(f.depth))
-        depth = np.maximum(f.depth, 0)
-        logged_depth = np.log(1 + depth) + 40 * noise
-
-        dt = cls.delta / hour
-
-        return np.transpose([f.speed,
-                             f.speed * np.cos(np.radians(f.angle_feature)) * dt, 
-                             f.speed * np.sin(np.radians(f.angle_feature)) * dt,
-                             f.dir_a * 60,
-                             f.dir_b * 60,
-                             np.exp(-f.delta_time),
-                             logged_depth, 
-                             ]), angle
 
     @classmethod
     def merge_train_with_features(cls, ssvid, train, features):
@@ -279,24 +230,115 @@ class SingleTrackDiffModel(SingleTrackModel):
     """SingleTrackModel that uses delta lat/lon
     """
 
-    def create_features_and_times(self, data, angle=77, max_deltas=0):
-        f, t = SingleTrackModel.create_features_and_times(self, data, angle, max_deltas)
-        if len(t):
-            t = t + datetime.timedelta(seconds=self.delta / 2.0)
-        return f, t
-
     def preprocess(self, x, fit=False):
-        x0 = np.asarray(x) 
-        try:
-            x = 0.5 * (x0[:, 1:, :] + x0[:, :-1, :])
-            x[:, :, 3:5] = x0[:, 1:, 3:5]
-        except:
-            logging.error('x is wrong shape: {}'.format(x0.shape))
-            raise
+        x = np.asarray(x)[:, 2:] 
         if fit:
             self.normalizer = Normalizer().fit(x)
         return self.normalizer.norm(x)
-        return x
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1, callbacks=[],
+            initial_epoch=0):
+        x1 = self.preprocess(x, fit=True)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data,
+                      initial_epoch=initial_epoch,
+                      verbose=verbose, callbacks=callbacks)
+
+    AugmentedFeatures = namedtuple('AugmentedFeatures',
+        ['speed', 'delta_time', 'angle_feature', 
+        'dir_a', 'dir_b', 'depth', 'distance', 'delta_degrees'])
+
+    @classmethod
+    def _augment_features(cls, raw_features, angle=None, noise=None):
+        """Perform the augmention portion of cook features"""
+        speed = raw_features[:, 0]
+        angle = np.random.uniform(0, 360) if (angle is None) else angle
+        radians = np.radians(angle)
+        angle_feat = angle + (90 - raw_features[:, 1])
+        
+        lat = raw_features[:, 2] 
+        lon = raw_features[:, 3] 
+        scale = np.cos(np.radians(lat[1:-1]))
+        delta_degrees = raw_features[:, 1].copy()
+        delta_degrees[2:] -= raw_features[:-2, 1]
+        delta_degrees[:2] = 0 
+        d1 = lat[2:] - lat[:-2]
+        d2 = ((lon[2:] - lon[:-2] + 180) % 360 - 180) * scale
+        dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
+        dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
+        dir_a = np.concatenate([dir_a[:2], dir_a], axis=0)
+        dir_b = np.concatenate([dir_b[:2], dir_b], axis=0)
+        depth = -raw_features[:, 5]
+        distance = raw_features[:, 6]
+
+        # speed, angle_feat, depth, distance are all off so shift one
+        # this is messy, clean up!
+        speed = np.concatenate([speed[:2], speed[1:-1]], axis=0)
+        angle_feat = np.concatenate([angle_feat[:2], angle_feat[1:-1]], axis=0)
+        depth = np.concatenate([depth[:2], depth[1:-1]], axis=0)
+        distance = np.concatenate([distance[:2], distance[1:-1]], axis=0)
+        # maybe delta_time too, but ignore for now.
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+        delta_time = np.maximum(raw_features[:, 4] / 
+                                float(cls.data_far_time) + noise, 0)
+
+        return angle, cls.AugmentedFeatures(speed, delta_time, angle_feat, 
+                        dir_a, dir_b, depth, distance, delta_degrees)
+
+    @classmethod
+    def cook_features(cls, raw_features, angle=None, noise=None):
+        angle, f = cls._augment_features(raw_features, angle, noise)
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(f.depth))
+        depth = np.maximum(f.depth, 0)
+        logged_depth = np.log(1 + depth) + 40 * noise
+
+        dt = cls.delta / hour
+
+        return np.transpose([f.speed,
+                             f.speed * np.cos(np.radians(f.angle_feature)) * dt, 
+                             f.speed * np.sin(np.radians(f.angle_feature)) * dt,
+                             f.dir_a * 60,
+                             f.dir_b * 60,
+                             np.exp(-f.delta_time),
+                             logged_depth, 
+                             ]), angle
+
+
+class SingleTrackDistModel(SingleTrackModel):
+
+    DistAugmentedFeatures = namedtuple('DistAugmentedFeatures',
+        ['speed', 'course', 'lon', 'lat'])
+
+
+    @classmethod
+    def _augment_features(cls, raw_features, angle=None, noise=None):
+        """Perform the augmention portion of cook features"""
+        # assert angle is None
+        # assert noise is None or noise == 0
+        speed = raw_features[:, 0]
+        course = np.radians(raw_features[:, 1])
+        lat = raw_features[:, 2] 
+        lon = raw_features[:, 3] 
+
+        return angle, cls.DistAugmentedFeatures(speed, course, lon, lat)
+
+    @classmethod
+    def cook_features(cls, raw_features, angle=None, noise=None):
+        angle, f = cls._augment_features(raw_features, angle, noise)
+        return np.transpose([f.speed, f.course, f.lon, f.lat]), angle
+
+
 
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
             validation_split=0, validation_data=0, verbose=1, callbacks=[],
