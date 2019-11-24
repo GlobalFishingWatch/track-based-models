@@ -2288,7 +2288,7 @@ class LoiteringModelDistV1(SingleTrackDistModel):
     time_point_delta = 1
     window = time_points * delta
 
-    base_filter_count = 64
+    base_filter_count = 128
 
     data_source_lbl='transshiping' 
     data_target_lbl='is_target_encounter'
@@ -2314,18 +2314,18 @@ class LoiteringModelDistV1(SingleTrackDistModel):
         def distance_block(y, dr):
             n = 2 * dr
             def distance(x):
-                dlon = x[:, n:, 2:3] - x[:, :-n, 2:3]
+                dlon = (x[:, n:, 2:3] - x[:, :-n, 2:3] + 180) % 360 - 180
                 dlat = x[:, n:, 3:4] - x[:, :-n, 3:4]
-                avglat = 0.5 * (x[:, n:, 3:4] - x[:, :-n, 3:4])
-                scale = K.cos(avglat)
+                avglat = 0.5 * (x[:, n:, 3:4] + x[:, :-n, 3:4])
+                scale = K.cos(3.14159 / 180 * avglat)
                 dist =  ((scale * dlon) ** 2 + dlat ** 2) ** 0.5
                 dcourse = x[:, n:, 1:2] - x[:, :-n, 1:2]
-                return K.concatenate([K.cos(dcourse), K.sin(dcourse), dist])
+                return K.concatenate([K.cos(3.14159 / 180 * dcourse), dist])
             def output_shape(input_shape):
                 shape = list(input_shape)
                 if shape[-2] is not None:
                     shape[-2] -= n
-                shape[-1] = 3
+                shape[-1] = 2
                 return tuple(shape)            
             return Lambda(distance, output_shape=output_shape)(y)
 

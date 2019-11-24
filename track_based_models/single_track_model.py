@@ -50,9 +50,16 @@ class SingleTrackModel(BaseModel):
         while i0 <= max_ndx:
             i1 = i0 + self.time_points
             features.append(self.cook_features(y[i0:i1], angle=angle, noise=0)[0])
+            times.extend(t[i0 + self.time_points//2:i1-self.time_points//2])
             i0 = i0 + 1
         times = np.asarray(times)
-        assert np.alltrue(t[self.time_points//2:-(self.time_points//2)] == times)
+        assert np.alltrue(t[self.time_points//2:-(self.time_points//2)] == times), (
+                        len(t[self.time_points//2:-(self.time_points//2)]), len(times),
+                        times[:8], 
+                        t[self.time_points//2:-(self.time_points//2)][:8],
+                        times[-8:], 
+                        t[self.time_points//2:-(self.time_points//2)][-8:],
+                        )
         return features, times
 
 
@@ -327,7 +334,7 @@ class SingleTrackDistModel(SingleTrackModel):
         # assert angle is None
         # assert noise is None or noise == 0
         speed = raw_features[:, 0]
-        course = np.radians(raw_features[:, 1])
+        course = raw_features[:, 1]
         lat = raw_features[:, 2] 
         lon = raw_features[:, 3] 
 
