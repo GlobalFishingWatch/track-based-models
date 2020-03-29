@@ -77,6 +77,10 @@ class LonglineSetsModelV1(SingleTrackModel):
         return cook_features(raw_features, angle, noise, far_time)
 
 
+    def predict(self, x):
+        x1 = self.preprocess(x)
+        return self.model.predict(x1)
+
 
     @classmethod
     def generate_data(cls, paths, min_samples, label_window=None, seed=888, 
@@ -279,8 +283,12 @@ def load_data(path, delta, skip_label=False, keep_fracs=[1], features=None,
             'fishing' : features.fishing,
             })
     for kf in keep_fracs:
-        t, x, y, label, is_defined = build_features(obj, delta=delta, 
-                                        skip_label=skip_label, keep_frac=kf)
+        try:
+            t, x, y, label, is_defined = build_features(obj, delta=delta, 
+                                            skip_label=skip_label, keep_frac=kf)
+        except:
+            print(path, kf, 'failed, skipping')
+            continue
         t = np.asarray(t)
         yield (t, x, y, label, is_defined)
     

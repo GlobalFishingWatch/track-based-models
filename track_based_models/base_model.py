@@ -112,7 +112,7 @@ class BaseModel(object):
 
     def predict(self, x):
         x1 = self.preprocess(x)
-        return self.model.predict(x1)[:, :, 0]
+        return self.model.predict(x1)[..., 0]
 
     def _predict_from_features(self, features):
         base_shape = features[0].shape
