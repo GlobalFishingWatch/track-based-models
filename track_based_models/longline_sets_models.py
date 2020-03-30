@@ -293,13 +293,16 @@ def load_data(path, delta, skip_label=False, keep_fracs=[1], features=None,
         yield (t, x, y, label, is_defined)
     
 
-from .loitering_models import LoiteringModelV16 as ModelBase
+from .loitering_models import LoiteringModelVD2 as ModelBase
 
 class LonglineSetsModelV2(ModelBase):
-    delta = 20 * 60
-    time_points = 93 # 72 = 24 hours
-    internal_time_points = 92
+    delta = 20 * minute
+    time_points = 141 # 144 = 12 hours,
+    internal_time_points = 139
+    time_point_delta = 1
     window = time_points * delta
+
+    base_filter_count = 128
     
     base_filter_count = 8
     
