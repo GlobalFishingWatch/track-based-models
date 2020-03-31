@@ -7,11 +7,12 @@ import os
 import keras
 from keras.models import Model as KerasModel
 from keras.layers import Dense, Dropout, Flatten, ELU, Input, Conv1D
+from keras.layers import MaxPooling1D, AveragePooling1D, BatchNormalization
 from keras.layers.core import Activation
 from keras import optimizers
 from .util import hour, minute
-from .base_model import hybrid_pool_layer
-from .single_track_model import SingleTrackModel
+from .base_model import hybrid_pool_layer, Normalizer
+from .single_track_model import SingleTrackModel, SingleTrackDiffModel
 from . import util
 from .util import minute, lin_interp, cos_deg, sin_deg  
 
@@ -24,7 +25,7 @@ class LonglineSetsModelV1(SingleTrackModel):
     fc_nodes = 512
 
     def __init__(self):
-        
+
         self.normalizer = None
         
         depth = self.base_filter_count
@@ -315,4 +316,86 @@ class LonglineSetsModelV2(ModelBase):
     data_false_vals = (2, 3)
     
     feature_padding_hours = 24.0
+
+
+
+class LonglineSetsModelV3(SingleTrackDiffModel):
+    
+    delta = hour
+    window = (29 + 4*6 + 2) *  delta 
+    time_points = window // delta # 53
+    base_filter_count = 32
+    time_point_delta = 1
+    fc_nodes = 512
+
+    vessel_label = None
+    data_source_lbl='fishing' 
+    data_target_lbl='setting'
+    data_undefined_vals = (0,)
+    data_defined_vals = (1, 2, 3)
+    data_true_vals = (1,)
+    data_false_vals = (2, 3)
+    data_far_time = 3 * 10 * minute
+
+    feature_padding_hours = 24.0
+
+
+    def __init__(self, width=None):
+        
+        self.normalizer = None
+        
+        depth = self.base_filter_count
+        pool_width = 3
+        dilation = 1
+
+        input_layer = Input(shape=(width, 7)) #19
+        y = input_layer
+        y = Conv1D(depth, 3)(y)
+        y = ELU()(y)
+        y = BatchNormalization()(y)
+        y = Conv1D(depth, 3)(y)
+        y = ELU()(y)
+        y = BatchNormalization()(y)
+        y1 = MaxPooling1D(pool_size=pool_width, strides=1)(y)
+        y2 = AveragePooling1D(pool_size=pool_width, strides=1)(y)
+        y = keras.layers.concatenate([y1, y2])
+
+        pool_width  = pool_width * 2 + 1
+        y = Conv1D(depth, 3, dilation_rate=2)(y)
+        y = ELU()(y)
+        y = BatchNormalization()(y)
+        y = Conv1D(depth, 3, dilation_rate=2)(y)
+        y = ELU()(y)
+        y = BatchNormalization()(y)
+        y1 = MaxPooling1D(pool_size=pool_width, strides=1)(y)
+        y2 = AveragePooling1D(pool_size=pool_width, strides=1)(y)
+        y = keras.layers.concatenate([y1, y2])
+
+        y = Conv1D(self.fc_nodes, 9, dilation_rate=4)(y)
+        y = ELU()(y)
+        y = BatchNormalization()(y)
+
+        y = Conv1D(self.fc_nodes, 1)(y)
+        y = ELU()(y)
+        y = Dropout(0.5)(y)
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        opt = optimizers.Nadam()
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+        self.optimizer = opt
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def preprocess(self, x, fit=False):
+        if fit:
+            # Build a normalizer for compatibility
+            self.normalizer = Normalizer().fit(x)
+        # Skip fitting.
+        return np.asarray(x)[:, 2:] 
 
