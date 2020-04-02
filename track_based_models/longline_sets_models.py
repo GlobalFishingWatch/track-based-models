@@ -12,7 +12,7 @@ from keras.layers.core import Activation
 from keras import optimizers
 from .util import hour, minute
 from .base_model import hybrid_pool_layer, Normalizer
-from .single_track_model import SingleTrackModel, SingleTrackDiffModel
+from .single_track_model import SingleTrackModel, SingleTrackDiffModel, SingleTrackDistModel
 from . import util
 from .util import minute, lin_interp, cos_deg, sin_deg  
 
@@ -60,6 +60,7 @@ class LonglineSetsModelV1(SingleTrackModel):
 
         y = Dense(1)(y)
         y = Activation('sigmoid')(y)
+        y = Reshape
         output_layer = y
         model = KerasModel(inputs=input_layer, outputs=output_layer)
         opt = optimizers.Nadam(lr=0.0005, schedule_decay=0.05)
@@ -124,7 +125,8 @@ class LonglineSetsModelV1(SingleTrackModel):
                     if dfnd[ndx:ndx+window_pts].sum() >= window_pts // 2:
                         ndxs.append(ndx)
                 if not ndxs:
-                    print("skipping", p, "because it is too short")
+                    print("skipping", p, "because it is too short", 
+                        p, len(x), window_pts)
                     continue
                 for ss in range(subsamples):
                     ndx = np.random.choice(ndxs)                
@@ -324,6 +326,7 @@ class LonglineSetsModelV3(SingleTrackDiffModel):
     delta = hour
     window = (29 + 4*6 + 2) *  delta 
     time_points = window // delta # 53
+    internal_time_points = time_points - 2
     base_filter_count = 32
     time_point_delta = 1
     fc_nodes = 512
@@ -348,7 +351,7 @@ class LonglineSetsModelV3(SingleTrackDiffModel):
         pool_width = 3
         dilation = 1
 
-        input_layer = Input(shape=(width, 7)) #19
+        input_layer = Input(shape=(width, 5)) #19
         y = input_layer
         y = Conv1D(depth, 3)(y)
         y = ELU()(y)
@@ -361,10 +364,10 @@ class LonglineSetsModelV3(SingleTrackDiffModel):
         y = keras.layers.concatenate([y1, y2])
 
         pool_width  = pool_width * 2 + 1
-        y = Conv1D(depth, 3, dilation_rate=2)(y)
+        y = Conv1D(2 * depth, 3, dilation_rate=2)(y)
         y = ELU()(y)
         y = BatchNormalization()(y)
-        y = Conv1D(depth, 3, dilation_rate=2)(y)
+        y = Conv1D(2 * depth, 3, dilation_rate=2)(y)
         y = ELU()(y)
         y = BatchNormalization()(y)
         y1 = MaxPooling1D(pool_size=pool_width, strides=1)(y)
@@ -384,7 +387,8 @@ class LonglineSetsModelV3(SingleTrackDiffModel):
 
 
         model = KerasModel(inputs=input_layer, outputs=y)
-        opt = optimizers.Nadam()
+        # opt = optimizers.Nadam()
+        opt = optimizers.Adam(lr=0.01)
         # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
         #                                 decay=0.5, nesterov=True)
         self.optimizer = opt
@@ -398,4 +402,22 @@ class LonglineSetsModelV3(SingleTrackDiffModel):
             self.normalizer = Normalizer().fit(x)
         # Skip fitting.
         return np.asarray(x)[:, 2:] 
+
+    @classmethod
+    def cook_features(cls, raw_features, angle=None, noise=None):
+        angle, f = cls._augment_features(raw_features, angle, noise)
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(f.depth))
+        depth = np.maximum(f.depth, 0)
+        logged_depth = np.log(1 + depth) + 40 * noise
+
+        dt = cls.delta / hour
+
+        return np.transpose([f.speed,
+                             np.cos(np.radians(f.angle_feature)) * dt, 
+                             np.sin(np.radians(f.angle_feature)) * dt,
+                             f.dir_a * 60,
+                             f.dir_b * 60,
+                             ]), angle
 

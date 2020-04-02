@@ -60,6 +60,9 @@ class SingleTrackModel(BaseModel):
                         times[-8:], 
                         t[self.time_points//2:-(self.time_points//2)][-8:],
                         )
+        print(type(t), t[0], t[-1], len(times))
+        print(type(times), times[0], times[-1], len(times))
+        print(len(features))
         return features, times
 
 
@@ -133,12 +136,13 @@ class SingleTrackModel(BaseModel):
         padding = datetime.timedelta(hours=cls.get_feature_padding_hours())
         t0 = train['timestamp'].iloc[0] - padding
         t1 = train['timestamp'].iloc[-1] + padding
-        i0 = np.searchsorted(features.timestamp, t0, side='left')
-        i1 = np.searchsorted(features.timestamp, t1, side='right')
-        features = features.iloc[i0:i1]
-        cls.add_obj_data(train, features)
+        timestamp = util.as_datetime_seq(features.timestamp)
+        i0 = np.searchsorted(timestamp, t0, side='left')
+        i1 = np.searchsorted(timestamp, t1, side='right')
+        clipped_features = features.iloc[i0:i1].copy()
+        cls.add_obj_data(train, clipped_features)
         # TODO: ensure padded region is undefined
-        return features
+        return clipped_features
 
     @classmethod
     def load_data(cls, path, features):
@@ -204,9 +208,8 @@ class SingleTrackModel(BaseModel):
                         if dfnd[ndx+lbl_offset:ndx+lbl_offset+lbl_pts].sum() >= lbl_pts / 2.0:
                             ndxs.append(ndx)
                     if not ndxs:
-                        print("skipping object", i, "because it is too short")
-                        print(len(dfnd), np.sum(dfnd), 
-                            sorted(set(label)))
+                        print("skipping", i, "because it is too short", 
+                            len(y), window_pts)
                         continue
                     for ss in range(subsamples):
                         ndx = np.random.choice(ndxs)                

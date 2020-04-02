@@ -33,7 +33,7 @@ def is_valid_path(x):
     return 'Observer' not in os.path.basename(x)
 
 
-def load_json_data(path, vessel_label):
+def load_json_data(path, vessel_label, data_source_lbl):
     with open(path) as f:
         obj = json.loads(f.read())
     if vessel_label is not None:
@@ -42,11 +42,18 @@ def load_json_data(path, vessel_label):
     obj['raw_timestamps'] = obj['timestamps']
     obj['timestamps'] = obj['timestamp'] = [dateutil.parser.parse(x) for x in obj['timestamps']]
     mask = np.ones_like(obj['timestamp'], dtype=bool)
+    existing_ts = set()
+    for i, ts in enumerate(obj['timestamp']):
+        if ts in existing_ts:
+            mask[i] = False
+        existing_ts.add(ts)
     for field in ['sogs', 'courses']:
 #	print(mask.dtype,  np.array([(x is not None) for x in obj[field]]).dtype)
         mask &= np.array([(x is not None) for x in obj[field]], dtype=bool)
-    for field in ['timestamp', 'lats', 'lons', 'sogs', 'courses']:
-        obj[field] = [x for (i, x) in enumerate(obj[field]) if mask[i]]
+    for field in [vessel_label, data_source_lbl, 'raw_timestamps', 'timestamps', 'timestamp', 
+                  'lats', 'lons', 'sogs', 'courses']:
+        if field is not None:
+            obj[field] = [x for (i, x) in enumerate(obj[field]) if mask[i]]
     return obj
   
 load_data = load_json_data
@@ -73,7 +80,7 @@ def setup_lin_interp(obj, delta=None, timestamps=None, mask=None, offset_seconds
         assert delta % 1 == 0, 'delta must be a whole number of seconds'
 
     raw_timestamps = as_datetime_seq(obj['timestamp'])
-    assert is_sorted(raw_timestamps), 'data must be sorted'
+    assert is_sorted_strict(raw_timestamps), 'data must be sorted:'
     if mask is not None:
         raw_timestamps = [x for (i, x) in enumerate(raw_timestamps) if mask[i]]
     ts0 = raw_timestamps[0]
@@ -238,12 +245,10 @@ def features_to_data(features, t0=None, t1=None):
 
 
 def load_training_data(path, vessel_label, data_source_lbl):     
-    raw_obj = load_json_data(path, vessel_label=vessel_label)  
+    raw_obj = load_json_data(path, vessel_label=vessel_label, data_source_lbl=data_source_lbl)  
     obj = convert_from_legacy_format(raw_obj)
-    mask = (~np.isnan(np.array(raw_obj['sogs'])) & 
-            ~np.isnan(np.array(raw_obj['courses'])))
     if data_source_lbl is not None:
-        obj[data_source_lbl] = np.asarray(raw_obj[data_source_lbl])[mask]
+        obj[data_source_lbl] = np.asarray(raw_obj[data_source_lbl])
     ssvid = raw_obj['mmsi']
     return ssvid, obj
 
