@@ -60,9 +60,6 @@ class SingleTrackModel(BaseModel):
                         times[-8:], 
                         t[self.time_points//2:-(self.time_points//2)][-8:],
                         )
-        print(type(t), t[0], t[-1], len(times))
-        print(type(times), times[0], times[-1], len(times))
-        print(len(features))
         return features, times
 
 
@@ -347,7 +344,6 @@ class SingleTrackDistModel(SingleTrackModel):
     def cook_features(cls, raw_features, angle=None, noise=None):
         angle, f = cls._augment_features(raw_features, angle, noise)
         return np.transpose([f.speed, f.course, f.lon, f.lat]), angle
-
 
 
     def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 

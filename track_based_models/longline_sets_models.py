@@ -15,7 +15,7 @@ from .base_model import hybrid_pool_layer, Normalizer
 from .single_track_model import SingleTrackModel, SingleTrackDiffModel, SingleTrackDistModel
 from . import util
 from .util import minute, lin_interp, cos_deg, sin_deg  
-
+from collections import namedtuple
 
 class LonglineSetsModelV1(SingleTrackModel):
     delta = hour
@@ -63,7 +63,7 @@ class LonglineSetsModelV1(SingleTrackModel):
         y = Reshape
         output_layer = y
         model = KerasModel(inputs=input_layer, outputs=output_layer)
-        opt = optimizers.Nadam(lr=0.0005, schedule_decay=0.05)
+        opt = optimizers.Nadam(lr=0.01)
         #opt = optimizers.Adam(lr=0.01, decay=0.5)
         model.compile(optimizer=opt, loss='binary_crossentropy', metrics=["accuracy"])
         self.model = model  
@@ -321,12 +321,12 @@ class LonglineSetsModelV2(ModelBase):
 
 
 
-class LonglineSetsModelV3(SingleTrackDiffModel):
+class LonglineSetsModelV3(SingleTrackModel):
     
     delta = hour
-    window = (29 + 4*6 + 2) *  delta 
+    window = (29 + 4*6) *  delta 
     time_points = window // delta # 53
-    internal_time_points = time_points - 2
+    internal_time_points = time_points
     base_filter_count = 32
     time_point_delta = 1
     fc_nodes = 512
@@ -335,9 +335,9 @@ class LonglineSetsModelV3(SingleTrackDiffModel):
     data_source_lbl='fishing' 
     data_target_lbl='setting'
     data_undefined_vals = (0,)
-    data_defined_vals = (1, 2, 3)
+    data_defined_vals = (0, 1, 2)
     data_true_vals = (1,)
-    data_false_vals = (2, 3)
+    data_false_vals = (0, 2)
     data_far_time = 3 * 10 * minute
 
     feature_padding_hours = 24.0
@@ -351,7 +351,7 @@ class LonglineSetsModelV3(SingleTrackDiffModel):
         pool_width = 3
         dilation = 1
 
-        input_layer = Input(shape=(width, 5)) #19
+        input_layer = Input(shape=(width, 6)) #19
         y = input_layer
         y = Conv1D(depth, 3)(y)
         y = ELU()(y)
@@ -401,7 +401,40 @@ class LonglineSetsModelV3(SingleTrackDiffModel):
             # Build a normalizer for compatibility
             self.normalizer = Normalizer().fit(x)
         # Skip fitting.
-        return np.asarray(x)[:, 2:] 
+        return np.asarray(x)
+
+    AugmentedFeatures = namedtuple('AugmentedFeatures',
+        ['speed', 'delta_time', 'angle_feature', 
+        'dir_a', 'dir_b', 'depth', 'distance'])
+    @classmethod
+    def _augment_features(cls, raw_features, angle=None, noise=None):
+        """Perform the augmention portion of cook features"""
+        speed = raw_features[:, 0]
+        angle = np.random.uniform(0, 360) if (angle is None) else angle
+        radians = np.radians(angle)
+        angle_feat = angle + (90 - raw_features[:, 1])
+        
+        lat = raw_features[:, 2] 
+        lon = raw_features[:, 3] 
+        scale = np.cos(np.radians(lat))
+        n = len(lat) // 2
+        d1 = lat - lat[n]
+        d2 = ((lon - lon[n] + 180) % 360 - 180) * scale
+        dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
+        dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
+
+        depth = -raw_features[:, 5]
+        distance = raw_features[:, 6]
+
+        # speed, angle_feat, depth, distance are all off so shift one
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+        delta_time = np.maximum(raw_features[:, 4] / 
+                                float(cls.data_far_time) + noise, 0)
+
+        return angle, cls.AugmentedFeatures(speed, delta_time, angle_feat, 
+                        dir_a, dir_b, depth, distance)
 
     @classmethod
     def cook_features(cls, raw_features, angle=None, noise=None):
@@ -419,5 +452,21 @@ class LonglineSetsModelV3(SingleTrackDiffModel):
                              np.sin(np.radians(f.angle_feature)) * dt,
                              f.dir_a * 60,
                              f.dir_b * 60,
+                             np.exp(-f.delta_time), 
                              ]), angle
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1, callbacks=[],
+            initial_epoch=0):
+        x1 = self.preprocess(x, fit=True)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data,
+                      initial_epoch=initial_epoch,
+                      verbose=verbose, callbacks=callbacks)
 
