@@ -62,6 +62,10 @@ def hybrid_pool_layer_2(x):
     
 
 class BaseModel(object):
+
+
+    # overload if custom objects need for loading
+    custom_objects = None
     
     util = util
 
@@ -85,7 +89,8 @@ class BaseModel(object):
                 else:
                     local_path = path
                 mdl = cls()
-                mdl.model = load_model(local_path)
+                cobjects = {} if (cls.custom_objects is None) else cls.custom_objects
+                mdl.model = load_model(local_path, custom_objects=cobjects)
                 mdl.normalizer = Normalizer.load(local_path)
                 cls._mdl_cache[path] = mdl
             finally:
