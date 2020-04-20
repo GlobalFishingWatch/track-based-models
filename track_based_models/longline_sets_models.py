@@ -7,7 +7,7 @@ import os
 import keras
 from keras.models import Model as KerasModel
 from keras.layers import Dense, Dropout, Flatten, ELU, ReLU, Input, Conv1D
-from keras.layers import MaxPooling1D, AveragePooling1D, BatchNormalization
+from keras.layers import MaxPooling1D, AveragePooling1D, BatchNormalization, Cropping1D
 from keras.layers.core import Activation
 from keras import optimizers
 from .util import hour, minute
@@ -549,6 +549,818 @@ class LonglineSetsModelV4(SingleTrackModel):
 
         y = Conv1D(self.fc_nodes, 1)(y)
         y = ReLU()(y)
+        y = Dropout(0.5)(y)
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        # opt = optimizers.Nadam()
+        opt = optimizers.Adam(lr=0.01)
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+        self.optimizer = opt
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def preprocess(self, x, fit=False):
+        if fit:
+            # Build a normalizer for compatibility
+            self.normalizer = Normalizer().fit(x)
+        # Skip fitting.
+        return np.asarray(x)
+
+    AugmentedFeatures = namedtuple('AugmentedFeatures',
+        ['speed', 'delta_time', 'angle_feature', 
+        'dir_a', 'dir_b', 'depth', 'distance'])
+    @classmethod
+    def _augment_features(cls, raw_features, angle=None, noise=None):
+        """Perform the augmention portion of cook features"""
+        speed = raw_features[:, 0]
+        angle = np.random.uniform(0, 360) if (angle is None) else angle
+        radians = np.radians(angle)
+        angle_feat = angle + (90 - raw_features[:, 1])
+        
+        lat = raw_features[:, 2] 
+        lon = raw_features[:, 3] 
+        scale = np.cos(np.radians(lat))
+        n = len(lat) // 2
+        d1 = lat - lat[n]
+        d2 = ((lon - lon[n] + 180) % 360 - 180) * scale
+        dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
+        dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
+
+        depth = -raw_features[:, 5]
+        distance = raw_features[:, 6]
+
+        # speed, angle_feat, depth, distance are all off so shift one
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+        delta_time = np.maximum(raw_features[:, 4] / 
+                                float(cls.data_far_time) + noise, 0)
+
+        return angle, cls.AugmentedFeatures(speed, delta_time, angle_feat, 
+                        dir_a, dir_b, depth, distance)
+
+    @classmethod
+    def cook_features(cls, raw_features, angle=None, noise=None):
+        angle, f = cls._augment_features(raw_features, angle, noise)
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(f.depth))
+        depth = np.maximum(f.depth, 0)
+        logged_depth = np.log(1 + depth) + 40 * noise
+
+        dt = cls.delta / hour
+
+        return np.transpose([f.speed,
+                             np.cos(np.radians(f.angle_feature)) * dt, 
+                             np.sin(np.radians(f.angle_feature)) * dt,
+                             f.dir_a * 60,
+                             f.dir_b * 60,
+                             np.exp(-f.delta_time), 
+                             ]), angle
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1, callbacks=[],
+            initial_epoch=0):
+        x1 = self.preprocess(x, fit=True)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data,
+                      initial_epoch=initial_epoch,
+                      verbose=verbose, callbacks=callbacks)
+
+
+
+class LonglineSetsModelV5(SingleTrackModel):
+
+    custom_objects = {'ShakeShake': ShakeShake}
+    
+    delta = hour
+    window = (29 + 4*6) *  delta 
+    time_points = window // delta # 53
+    internal_time_points = time_points
+    base_filter_count = 32
+    time_point_delta = 1
+    fc_nodes = 512
+
+    vessel_label = None
+    data_source_lbl='fishing' 
+    data_target_lbl='setting'
+    data_undefined_vals = (0,)
+    data_defined_vals = (0, 1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (0, 2)
+    data_far_time = 3 * 10 * minute
+
+    feature_padding_hours = 24.0
+
+
+    def __init__(self, width=None):
+        
+        self.normalizer = None
+        
+        depth = self.base_filter_count
+        pool_width = 3
+        dilation = 1
+
+        input_layer = Input(shape=(width, 6)) #19
+        y = input_layer
+        y1 = Conv1D(10 * depth // 10, 3)(y)
+        y1 = BatchNormalization()(y1)
+        y2 = Conv1D(10 * depth // 10, 3)(y)
+        y2 = BatchNormalization()(y2)
+        y = ShakeShake()([y1, y2])
+        y = ReLU()(y)
+        y1 = Conv1D(14 * depth // 10, 3)(y)
+        y1 = BatchNormalization()(y1)
+        y2 = Conv1D(14 * depth // 10, 3)(y)
+        y2 = BatchNormalization()(y2)
+        y = ShakeShake()([y1, y2])
+        y = ReLU()(y)
+        y1 = MaxPooling1D(pool_size=pool_width, strides=1)(y)
+        y2 = AveragePooling1D(pool_size=pool_width, strides=1)(y)
+        y = keras.layers.concatenate([y1, y2])
+
+        pool_width  = pool_width * 2 + 1
+        y1 = Conv1D(18 * depth // 10, 3, dilation_rate=2)(y)
+        y1 = BatchNormalization()(y1)
+        y2 = Conv1D(18 * depth // 10, 3, dilation_rate=2)(y)
+        y2 = BatchNormalization()(y2)
+        y = ShakeShake()([y1, y2])
+        y = ReLU()(y)
+        y1 = Conv1D(22 * depth // 10, 3, dilation_rate=2)(y)
+        y1 = BatchNormalization()(y1)
+        y2 = Conv1D(22 * depth // 10, 3, dilation_rate=2)(y)
+        y2 = BatchNormalization()(y2)
+        y = ShakeShake()([y1, y2])
+        y = ReLU()(y)
+        y1 = MaxPooling1D(pool_size=pool_width, strides=1)(y)
+        y2 = AveragePooling1D(pool_size=pool_width, strides=1)(y)
+        y = keras.layers.concatenate([y1, y2])
+
+        y1 = Conv1D(26 * depth // 10, 3, dilation_rate=4)(y)
+        y1 = BatchNormalization()(y1)
+        y2 = Conv1D(26 * depth // 10, 3, dilation_rate=4)(y)
+        y2 = BatchNormalization()(y2)
+        y = ShakeShake()([y1, y2])
+        y = ReLU()(y)
+        y1 = Conv1D(30 * depth // 10, 3, dilation_rate=4)(y)
+        y1 = BatchNormalization()(y1)
+        y2 = Conv1D(30 * depth // 10, 3, dilation_rate=4)(y)
+        y2 = BatchNormalization()(y2)
+        y = ShakeShake()([y1, y2])
+        y = ReLU()(y)
+        y1 = Conv1D(34 * depth // 10, 3, dilation_rate=4)(y)
+        y1 = BatchNormalization()(y1)
+        y2 = Conv1D(34 * depth // 10, 3, dilation_rate=4)(y)
+        y2 = BatchNormalization()(y2)
+        y = ShakeShake()([y1, y2])
+        y = ReLU()(y)
+        y1 = Conv1D(38 * depth // 10, 3, dilation_rate=4)(y)
+        y1 = BatchNormalization()(y1)
+        y2 = Conv1D(38 * depth // 10, 3, dilation_rate=4)(y)
+        y2 = BatchNormalization()(y2)
+        y = ShakeShake()([y1, y2])
+        y = ReLU()(y)
+
+        y = Dropout(0.5)(y)
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        # opt = optimizers.Nadam()
+        opt = optimizers.Adam(lr=0.01)
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+        self.optimizer = opt
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def preprocess(self, x, fit=False):
+        if fit:
+            # Build a normalizer for compatibility
+            self.normalizer = Normalizer().fit(x)
+        # Skip fitting.
+        return np.asarray(x)
+
+    AugmentedFeatures = namedtuple('AugmentedFeatures',
+        ['speed', 'delta_time', 'angle_feature', 
+        'dir_a', 'dir_b', 'depth', 'distance'])
+    @classmethod
+    def _augment_features(cls, raw_features, angle=None, noise=None):
+        """Perform the augmention portion of cook features"""
+        speed = raw_features[:, 0]
+        angle = np.random.uniform(0, 360) if (angle is None) else angle
+        radians = np.radians(angle)
+        angle_feat = angle + (90 - raw_features[:, 1])
+        
+        lat = raw_features[:, 2] 
+        lon = raw_features[:, 3] 
+        scale = np.cos(np.radians(lat))
+        n = len(lat) // 2
+        d1 = lat - lat[n]
+        d2 = ((lon - lon[n] + 180) % 360 - 180) * scale
+        dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
+        dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
+
+        depth = -raw_features[:, 5]
+        distance = raw_features[:, 6]
+
+        # speed, angle_feat, depth, distance are all off so shift one
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+        delta_time = np.maximum(raw_features[:, 4] / 
+                                float(cls.data_far_time) + noise, 0)
+
+        return angle, cls.AugmentedFeatures(speed, delta_time, angle_feat, 
+                        dir_a, dir_b, depth, distance)
+
+    @classmethod
+    def cook_features(cls, raw_features, angle=None, noise=None):
+        angle, f = cls._augment_features(raw_features, angle, noise)
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(f.depth))
+        depth = np.maximum(f.depth, 0)
+        logged_depth = np.log(1 + depth) + 40 * noise
+
+        dt = cls.delta / hour
+
+        return np.transpose([f.speed,
+                             np.cos(np.radians(f.angle_feature)) * dt, 
+                             np.sin(np.radians(f.angle_feature)) * dt,
+                             f.dir_a * 60,
+                             f.dir_b * 60,
+                             np.exp(-f.delta_time), 
+                             ]), angle
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1, callbacks=[],
+            initial_epoch=0):
+        x1 = self.preprocess(x, fit=True)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data,
+                      initial_epoch=initial_epoch,
+                      verbose=verbose, callbacks=callbacks)
+
+
+class LonglineSetsModelV6(SingleTrackModel):
+
+    custom_objects = {'ShakeShake': ShakeShake}
+    
+    delta = hour
+    window = (29 + 24) *  delta 
+    time_points = window // delta # 53
+    internal_time_points = time_points
+    base_filter_count = 32
+    time_point_delta = 1
+
+    vessel_label = None
+    data_source_lbl='fishing' 
+    data_target_lbl='setting'
+    data_undefined_vals = (0,)
+    data_defined_vals = (0, 1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (0, 2)
+    data_far_time = 3 * 10 * minute
+
+    feature_padding_hours = 24.0
+
+
+    def __init__(self, width=None):
+        
+        self.normalizer = None
+        
+        base_filter_count = self.base_filter_count
+        dilation = 1
+
+        def shake_shake_block(y, filter_count, dilation_rate):
+            filter_count = int(round(filter_count))
+            y1 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y)
+            y1 = BatchNormalization()(y1)
+            y2 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y)
+            y2 = BatchNormalization()(y2)
+            y = ShakeShake()([y1, y2])
+            y = ReLU()(y)
+            return y
+
+        def pool_block(y, width):
+            # Would like to use cropped, but may need more data
+            y1 = MaxPooling1D(pool_size=width, strides=1)(y)
+            y2 = AveragePooling1D(pool_size=width, strides=1)(y)
+            y = keras.layers.concatenate([y1, y2])
+            return y
+
+        input_layer = Input(shape=(width, 6)) #19
+        y = input_layer
+        y = shake_shake_block(y, 1.0 * base_filter_count, 1)
+        y = shake_shake_block(y, 1.4 * base_filter_count, 1)
+        y = pool_block(y, 3)
+
+        y = shake_shake_block(y, 1.8 * base_filter_count, 2)
+        y = shake_shake_block(y, 2.2 * base_filter_count, 2)
+        y = pool_block(y, 7)
+
+        y = shake_shake_block(y, 2.6 * base_filter_count, 4)
+        y = shake_shake_block(y, 3.0 * base_filter_count, 4) 
+        y = shake_shake_block(y, 3.4 * base_filter_count, 4)
+        y = shake_shake_block(y, 3.8 * base_filter_count, 4)
+
+        y = Dropout(0.5)(y)
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        # opt = optimizers.Nadam()
+        opt = optimizers.Adam(lr=0.01)
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+        self.optimizer = opt
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def preprocess(self, x, fit=False):
+        if fit:
+            # Build a normalizer for compatibility
+            self.normalizer = Normalizer().fit(x)
+        # Skip fitting.
+        return np.asarray(x)
+
+    AugmentedFeatures = namedtuple('AugmentedFeatures',
+        ['speed', 'delta_time', 'angle_feature', 
+        'dir_a', 'dir_b', 'depth', 'distance'])
+    @classmethod
+    def _augment_features(cls, raw_features, angle=None, noise=None):
+        """Perform the augmention portion of cook features"""
+        speed = raw_features[:, 0]
+        angle = np.random.uniform(0, 360) if (angle is None) else angle
+        radians = np.radians(angle)
+        angle_feat = angle + (90 - raw_features[:, 1])
+        
+        lat = raw_features[:, 2] 
+        lon = raw_features[:, 3] 
+        scale = np.cos(np.radians(lat))
+        n = len(lat) // 2
+        d1 = lat - lat[n]
+        d2 = ((lon - lon[n] + 180) % 360 - 180) * scale
+        dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
+        dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
+
+        depth = -raw_features[:, 5]
+        distance = raw_features[:, 6]
+
+        # speed, angle_feat, depth, distance are all off so shift one
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+        delta_time = np.maximum(raw_features[:, 4] / 
+                                float(cls.data_far_time) + noise, 0)
+
+        return angle, cls.AugmentedFeatures(speed, delta_time, angle_feat, 
+                        dir_a, dir_b, depth, distance)
+
+    @classmethod
+    def cook_features(cls, raw_features, angle=None, noise=None):
+        angle, f = cls._augment_features(raw_features, angle, noise)
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(f.depth))
+        depth = np.maximum(f.depth, 0)
+        logged_depth = np.log(1 + depth) + 40 * noise
+
+        dt = cls.delta / hour
+
+        return np.transpose([f.speed,
+                             np.cos(np.radians(f.angle_feature)) * dt, 
+                             np.sin(np.radians(f.angle_feature)) * dt,
+                             f.dir_a * 60,
+                             f.dir_b * 60,
+                             np.exp(-f.delta_time), 
+                             ]), angle
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1, callbacks=[],
+            initial_epoch=0):
+        x1 = self.preprocess(x, fit=True)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data,
+                      initial_epoch=initial_epoch,
+                      verbose=verbose, callbacks=callbacks)
+
+class LonglineSetsModelV7(SingleTrackModel):
+
+    custom_objects = {'ShakeShake': ShakeShake}
+    
+    delta = hour
+    window = (29 + 28) *  delta 
+    time_points = window // delta # 53
+    internal_time_points = time_points
+    base_filter_count = 32
+    time_point_delta = 1
+
+    vessel_label = None
+    data_source_lbl='fishing' 
+    data_target_lbl='setting'
+    data_undefined_vals = (0,)
+    data_defined_vals = (0, 1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (0, 2)
+    data_far_time = 3 * 10 * minute
+
+    feature_padding_hours = 24.0
+
+
+    def __init__(self, width=None):
+        
+        self.normalizer = None
+        
+        base_filter_count = self.base_filter_count
+        dilation = 1
+
+        def shake_shake_block(y, filter_count, dilation_rate):
+            filter_count = int(round(filter_count))
+            y1 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y)
+            y1 = BatchNormalization()(y1)
+            y2 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y)
+            y2 = BatchNormalization()(y2)
+            y = ShakeShake()([y1, y2])
+            y = ReLU()(y)
+            return y
+
+        def pool_block(y, width):
+            return MaxPooling1D(pool_size=width, strides=1)(y)
+
+        input_layer = Input(shape=(width, 6)) #19
+        y = input_layer
+        y = shake_shake_block(y, 1.0 * base_filter_count, 1)
+        y0 = y = shake_shake_block(y, 1.4 * base_filter_count, 1)
+        y = pool_block(y, 3)
+
+        y = shake_shake_block(y, 1.8 * base_filter_count, 2)
+        y1 = y = shake_shake_block(y, 2.2 * base_filter_count, 2)
+        y = pool_block(y, 7)
+
+        y = shake_shake_block(y, 2.6 * base_filter_count, 4)
+        y = shake_shake_block(y, 3.0 * base_filter_count, 4) 
+        y = shake_shake_block(y, 2.6 * base_filter_count, 4)
+
+        y = keras.layers.concatenate([y, Cropping1D(cropping=(15, 15))(y1)])
+        y = shake_shake_block(y, 2.2 * base_filter_count, 2)
+        y = shake_shake_block(y, 2.2 * base_filter_count, 2)
+
+        y = keras.layers.concatenate([y, Cropping1D(cropping=(24, 24))(y0)])
+        y = shake_shake_block(y, 1.4 * base_filter_count, 1)
+        y = shake_shake_block(y, 1.0 * base_filter_count, 1)
+
+
+        y = Dropout(0.5)(y)
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        # opt = optimizers.Nadam()
+        opt = optimizers.Adam(lr=0.01)
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+        self.optimizer = opt
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def preprocess(self, x, fit=False):
+        if fit:
+            # Build a normalizer for compatibility
+            self.normalizer = Normalizer().fit(x)
+        # Skip fitting.
+        return np.asarray(x)
+
+    AugmentedFeatures = namedtuple('AugmentedFeatures',
+        ['speed', 'delta_time', 'angle_feature', 
+        'dir_a', 'dir_b', 'depth', 'distance'])
+    @classmethod
+    def _augment_features(cls, raw_features, angle=None, noise=None):
+        """Perform the augmention portion of cook features"""
+        speed = raw_features[:, 0]
+        angle = np.random.uniform(0, 360) if (angle is None) else angle
+        radians = np.radians(angle)
+        angle_feat = angle + (90 - raw_features[:, 1])
+        
+        lat = raw_features[:, 2] 
+        lon = raw_features[:, 3] 
+        scale = np.cos(np.radians(lat))
+        n = len(lat) // 2
+        d1 = lat - lat[n]
+        d2 = ((lon - lon[n] + 180) % 360 - 180) * scale
+        dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
+        dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
+
+        depth = -raw_features[:, 5]
+        distance = raw_features[:, 6]
+
+        # speed, angle_feat, depth, distance are all off so shift one
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+        delta_time = np.maximum(raw_features[:, 4] / 
+                                float(cls.data_far_time) + noise, 0)
+
+        return angle, cls.AugmentedFeatures(speed, delta_time, angle_feat, 
+                        dir_a, dir_b, depth, distance)
+
+    @classmethod
+    def cook_features(cls, raw_features, angle=None, noise=None):
+        angle, f = cls._augment_features(raw_features, angle, noise)
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(f.depth))
+        depth = np.maximum(f.depth, 0)
+        logged_depth = np.log(1 + depth) + 40 * noise
+
+        dt = cls.delta / hour
+
+        return np.transpose([f.speed,
+                             np.cos(np.radians(f.angle_feature)) * dt, 
+                             np.sin(np.radians(f.angle_feature)) * dt,
+                             f.dir_a * 60,
+                             f.dir_b * 60,
+                             np.exp(-f.delta_time), 
+                             ]), angle
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1, callbacks=[],
+            initial_epoch=0):
+        x1 = self.preprocess(x, fit=True)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data,
+                      initial_epoch=initial_epoch,
+                      verbose=verbose, callbacks=callbacks)
+
+
+class LonglineSetsModelV8(SingleTrackModel):
+
+    custom_objects = {'ShakeShake': ShakeShake}
+    
+    delta = hour
+    window = 57 *  delta 
+    time_points = window // delta # 53
+    internal_time_points = time_points
+    base_filter_count = 32
+    time_point_delta = 1
+
+    vessel_label = None
+    data_source_lbl='fishing' 
+    data_target_lbl='setting'
+    data_undefined_vals = (0,)
+    data_defined_vals = (0, 1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (0, 2)
+    data_far_time = 3 * 10 * minute
+
+    feature_padding_hours = 24.0
+
+
+    def __init__(self, width=None):
+        
+        self.normalizer = None
+        
+        base_filter_count = self.base_filter_count
+        dilation = 1
+
+        def shake_shake_block(y, filter_count, dilation_rate):
+            filter_count = int(round(filter_count))
+
+            y1 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y)
+            y1 = BatchNormalization()(y1)
+            y1 = ReLU()(y1)
+            y1 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y1)
+            y1 = BatchNormalization()(y1)
+
+            y2 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y)
+            y2 = BatchNormalization()(y2)
+            y2 = ReLU()(y2)
+            y2 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y2)
+            y2 = BatchNormalization()(y2)
+
+            y = ShakeShake()([y1, y2])
+            y = ReLU()(y)
+            return y
+
+        def pool_block(y, width):
+            # Would like to use cropped, but may need more data
+            y1 = MaxPooling1D(pool_size=width, strides=1)(y)
+            y2 = AveragePooling1D(pool_size=width, strides=1)(y)
+            y = keras.layers.concatenate([y1, y2])
+            return y
+
+        input_layer = Input(shape=(width, 6)) #19
+        y = input_layer
+        y = shake_shake_block(y, 1.0 * base_filter_count, 1)
+
+        y = shake_shake_block(y, 1.5 * base_filter_count, 2)
+
+        y = shake_shake_block(y, 2.0 * base_filter_count, 4)
+        y = shake_shake_block(y, 2.0 * base_filter_count, 4) 
+
+        y = shake_shake_block(y, 1.5 * base_filter_count, 2)
+
+        y = shake_shake_block(y, 1.0 * base_filter_count, 1)
+
+
+        y = Dropout(0.5)(y)
+
+        y = Conv1D(1, 1)(y)
+        y = Activation('sigmoid')(y)
+
+
+        model = KerasModel(inputs=input_layer, outputs=y)
+        # opt = optimizers.Nadam()
+        opt = optimizers.Adam(lr=0.01)
+        # opt = keras.optimizers.SGD(lr=0.00001, momentum=0.9, 
+        #                                 decay=0.5, nesterov=True)
+        self.optimizer = opt
+        model.compile(optimizer=opt, loss='binary_crossentropy', 
+            metrics=["accuracy"], sample_weight_mode="temporal")
+        self.model = model  
+
+    def preprocess(self, x, fit=False):
+        if fit:
+            # Build a normalizer for compatibility
+            self.normalizer = Normalizer().fit(x)
+        # Skip fitting.
+        return np.asarray(x)
+
+    AugmentedFeatures = namedtuple('AugmentedFeatures',
+        ['speed', 'delta_time', 'angle_feature', 
+        'dir_a', 'dir_b', 'depth', 'distance'])
+    @classmethod
+    def _augment_features(cls, raw_features, angle=None, noise=None):
+        """Perform the augmention portion of cook features"""
+        speed = raw_features[:, 0]
+        angle = np.random.uniform(0, 360) if (angle is None) else angle
+        radians = np.radians(angle)
+        angle_feat = angle + (90 - raw_features[:, 1])
+        
+        lat = raw_features[:, 2] 
+        lon = raw_features[:, 3] 
+        scale = np.cos(np.radians(lat))
+        n = len(lat) // 2
+        d1 = lat - lat[n]
+        d2 = ((lon - lon[n] + 180) % 360 - 180) * scale
+        dir_a = np.cos(radians) * d2 - np.sin(radians) * d1
+        dir_b = np.cos(radians) * d1 + np.sin(radians) * d2
+
+        depth = -raw_features[:, 5]
+        distance = raw_features[:, 6]
+
+        # speed, angle_feat, depth, distance are all off so shift one
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(raw_features[:, 4]))
+        delta_time = np.maximum(raw_features[:, 4] / 
+                                float(cls.data_far_time) + noise, 0)
+
+        return angle, cls.AugmentedFeatures(speed, delta_time, angle_feat, 
+                        dir_a, dir_b, depth, distance)
+
+    @classmethod
+    def cook_features(cls, raw_features, angle=None, noise=None):
+        angle, f = cls._augment_features(raw_features, angle, noise)
+
+        if noise is None:
+            noise = np.random.normal(0, .05, size=len(f.depth))
+        depth = np.maximum(f.depth, 0)
+        logged_depth = np.log(1 + depth) + 40 * noise
+
+        dt = cls.delta / hour
+
+        return np.transpose([f.speed,
+                             np.cos(np.radians(f.angle_feature)) * dt, 
+                             np.sin(np.radians(f.angle_feature)) * dt,
+                             f.dir_a * 60,
+                             f.dir_b * 60,
+                             np.exp(-f.delta_time), 
+                             ]), angle
+
+    def fit(self, x, labels, epochs=1, batch_size=32, sample_weight=None, 
+            validation_split=0, validation_data=0, verbose=1, callbacks=[],
+            initial_epoch=0):
+        x1 = self.preprocess(x, fit=True)
+        l1 = np.asarray(labels).reshape(len(labels), -1, 1)
+        if validation_data not in (None, 0):
+            a, b, c = validation_data
+            validation_data = self.preprocess(a), b, c
+        return self.model.fit(x1, l1, epochs=epochs, batch_size=batch_size, 
+                        sample_weight=sample_weight,
+                      validation_split=validation_split, 
+                      validation_data=validation_data,
+                      initial_epoch=initial_epoch,
+                      verbose=verbose, callbacks=callbacks)
+
+
+class LonglineSetsModelV9(SingleTrackModel):
+
+    custom_objects = {'ShakeShake': ShakeShake}
+    
+    delta = hour
+    window = (29 + 24) *  delta 
+    time_points = window // delta # 53
+    internal_time_points = time_points
+    base_filter_count = 32
+    time_point_delta = 1
+
+    vessel_label = None
+    data_source_lbl='fishing' 
+    data_target_lbl='setting'
+    data_undefined_vals = (0,)
+    data_defined_vals = (0, 1, 2)
+    data_true_vals = (1,)
+    data_false_vals = (0, 2)
+    data_far_time = 3 * 10 * minute
+
+    feature_padding_hours = 24.0
+
+
+    def __init__(self, width=None):
+        
+        self.normalizer = None
+        
+        base_filter_count = self.base_filter_count
+        dilation = 1
+
+        def shake_shake_block(y, filter_count, dilation_rate):
+            filter_count = int(round(filter_count))
+
+            y1 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y)
+            y1 = BatchNormalization()(y1)
+            y1 = ReLU()(y1)
+            y1 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y1)
+            y1 = BatchNormalization()(y1)
+
+            y2 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y)
+            y2 = BatchNormalization()(y2)
+            y2 = ReLU()(y2)
+            y2 = Conv1D(filter_count, 3, dilation_rate=dilation_rate)(y2)
+            y2 = BatchNormalization()(y2)
+
+            y = ShakeShake()([y1, y2])
+            y = ReLU()(y)
+            return y
+
+        def pool_block(y, width):
+            # Would like to use cropped, but may need more data
+            y1 = MaxPooling1D(pool_size=width, strides=1)(y)
+            y2 = AveragePooling1D(pool_size=width, strides=1)(y)
+            y = keras.layers.concatenate([y1, y2])
+            return y
+
+        input_layer = Input(shape=(width, 6)) #19
+        y = input_layer
+        y = shake_shake_block(y, 1.0 * base_filter_count, 1)
+        y = pool_block(y, 3)
+
+        y = shake_shake_block(y, 1.8 * base_filter_count, 2)
+        y = pool_block(y, 7)
+
+        y = shake_shake_block(y, 2.6 * base_filter_count, 4)
+        y = shake_shake_block(y, 3.4 * base_filter_count, 4)
+
         y = Dropout(0.5)(y)
 
         y = Conv1D(1, 1)(y)
