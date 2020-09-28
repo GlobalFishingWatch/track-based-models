@@ -1,7 +1,11 @@
 data/
-notebooks/
 untracked/
 .DS_Store
+*.ipynb
+notebooks/*.h5
+notebooks/*.csv
+notebooks/*.pkl
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
